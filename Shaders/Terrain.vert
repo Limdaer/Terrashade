@@ -14,7 +14,8 @@ out vec3 Normal;
 uniform int octaves = 6;  // Počet hladin šumu
 uniform float persistence = 0.3; // Jak moc se snižuje amplituda s další hladinou
 uniform float lacunarity = 2.0;  // Jak moc se zvyšuje frekvence s další hladinou
-uniform float heightScale = 50.0;
+uniform float heightScale = 15.0;
+uniform float edgeSharpness = 3.5;
 
 //Pomocí kubické interpolace - 
 // Funkce pro fade efekt - verze pro float
@@ -92,16 +93,45 @@ float fbm(vec2 pos) {
     return total / maxValue; // Normalizace
 }
 
+// Voronoi Noise generování výšky
+float voronoiNoise(vec2 pos, float edgeSharpness) {
+    vec2 cell = floor(pos); // Najdeme buňku, ve které jsme
+    vec2 localPos = fract(pos); // Relativní pozice uvnitř buňky
+
+    float minDist = 1.0; // Nejmenší vzdálenost (počáteční hodnota)
+
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            vec2 neighbor = vec2(x, y); // Sousední buňky
+            vec2 point = vec2(hash(int(cell.x) + x, int(cell.y) + y) & 255) / 255.0; // Náhodné centrum buňky
+            float dist = length(neighbor + point - localPos); // Vzdálenost od tohoto bodu
+            minDist = min(minDist, dist); // Uložíme nejbližší vzdálenost
+        }
+    }
+    //smoothstep nastavuje hladší přechod mezi hodnotami (edge1,edge2,x)
+    float smoothHeight = smoothstep(0.3,1.0,minDist);
+    return -pow(smoothHeight,edgeSharpness);
+}
+
 // Hlavní funkce vertex shaderu
 void main() {
-    // Výpočet výšky terénu
-    float height = fbm(aPos.xz * 0.1) * heightScale;
+    // Výpočet výšky terénu pomocí Perlin Noise / FBM
+    //float height = fbm(aPos.xz * 0.1) * heightScale;
+    // Výpočet výšky terénu pomocí Voronoi Diagram + Perlin Noise
+    float height = (fbm(aPos.xz * 0.1) + voronoiNoise(aPos.xz * 0.1, edgeSharpness)) * heightScale;
+
     vec3 newPosition = vec3(aPos.x, height, aPos.z);
 
-    // Výpočet normály
+    // Výpočet normály Perlin
     //rozdíl výšek mezi bodem a bodem o +1 dál
-    float dx = fbm((aPos.xz + vec2(1.0, 0.0)) * 0.1) * heightScale - height;
-    float dz = fbm((aPos.xz + vec2(0.0, 1.0)) * 0.1) * heightScale - height;
+    //float dx = fbm((aPos.xz + vec2(1.0, 0.0)) * 0.1) * heightScale - height;
+    //float dz = fbm((aPos.xz + vec2(0.0, 1.0)) * 0.1) * heightScale - height;
+    //vec3 calculatedNormal = normalize(vec3(-dx, 1.0, -dz));
+
+    // Výpočet normály - rozdíl výšek mezi bodem a bodem o +1 dál
+    float dx = ((fbm((aPos.xz + vec2(1.0, 0.0)) * 0.1) + voronoiNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1, edgeSharpness)) * heightScale) - height;
+    float dz = ((fbm((aPos.xz + vec2(0.0, 1.0)) * 0.1) + voronoiNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1, edgeSharpness)) * heightScale) - height;
+
     vec3 calculatedNormal = normalize(vec3(-dx, 1.0, -dz));
 
     // Předání do fragment shaderu
