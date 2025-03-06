@@ -157,11 +157,11 @@ void main() {
     // Výpočet výšky terénu pomocí Perlin Noise / FBM
     //float height = fbm(aPos.xz * 0.1) * heightScale;
     // Výpočet výšky terénu pomocí Voronoi Diagram + Perlin Noise
-    //float height = (fbm(aPos.xz * 0.1) + voronoiNoise(aPos.xz * 0.1, edgeSharpness)) * heightScale;
+    float height = (fbm(aPos.xz * 0.1) + voronoiNoise(aPos.xz * 0.1, edgeSharpness)) * heightScale;
     //Výpočet výšky terénu pomocí Simplex Noise
     //float height = -pow((simplexNoise(aPos.xz * 0.1) * 0.5 + 0.5), 2.5) * heightScale;
     //Výpočet výšky terénu pomocí Simplex Noise a Voronoi
-    float height = (-pow((simplexNoise(aPos.xz * 0.1) * 0.5 + 0.5), 2.5) + voronoiNoise(aPos.xz * 0.1, edgeSharpness)) * heightScale;
+    //float height = (-pow((simplexNoise(aPos.xz * 0.1) * 0.5 + 0.5), 2.5) + voronoiNoise(aPos.xz * 0.1, edgeSharpness)) * heightScale;
 
     vec3 newPosition = vec3(aPos.x, height, aPos.z);
 
@@ -171,20 +171,20 @@ void main() {
     //float dz = fbm((aPos.xz + vec2(0.0, 1.0)) * 0.1) * heightScale - height;
 
     // Výpočet normály Perlin + Voronoi - rozdíl výšek mezi bodem a bodem o +1 dál
-    //float dx = ((fbm((aPos.xz + vec2(1.0, 0.0)) * 0.1) 
-    //+ voronoiNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1, edgeSharpness)) * heightScale) - height;
-    //float dz = ((fbm((aPos.xz + vec2(0.0, 1.0)) * 0.1) 
-    //+ voronoiNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1, edgeSharpness)) * heightScale) - height;
+    float dx = ((fbm((aPos.xz + vec2(1.0, 0.0)) * 0.1) 
+    + voronoiNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1, edgeSharpness)) * heightScale) - height;
+    float dz = ((fbm((aPos.xz + vec2(0.0, 1.0)) * 0.1) 
+    + voronoiNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1, edgeSharpness)) * heightScale) - height;
 
     // Výpočet normály Simplex Noise
     //float dx = -pow((simplexNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1) * 0.5 + 0.5), 2.5) * heightScale - height;
     //float dz = -pow((simplexNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1) * 0.5 + 0.5), 2.5) * heightScale - height;
 
     // Výpočet normály Simplex Noise a Voronoi
-    float dx = ((-pow((simplexNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1) * 0.5 + 0.5), 2.5) 
-    + voronoiNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1, edgeSharpness)) * heightScale) - height;
-    float dz = ((-pow((simplexNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1) * 0.5 + 0.5), 2.5) 
-    + voronoiNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1, edgeSharpness)) * heightScale) - height;
+    //float dx = ((-pow((simplexNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1) * 0.5 + 0.5), 2.5) 
+    //+ voronoiNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1, edgeSharpness)) * heightScale) - height;
+    //float dz = ((-pow((simplexNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1) * 0.5 + 0.5), 2.5) 
+    //+ voronoiNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1, edgeSharpness)) * heightScale) - height;
 
 
     vec3 calculatedNormal = normalize(vec3(-dx, 1.0, -dz));

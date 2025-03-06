@@ -1,0 +1,22 @@
+#version 460 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(std430, binding = 0) buffer TerrainBuffer {
+    float terrainData[];
+};
+
+uniform int gridSize;
+
+void main() {
+    ivec2 id = ivec2(gl_GlobalInvocationID.xy);
+    
+    // Kontrola, zda nejsme mimo rozsah gridu
+    if (id.x >= gridSize || id.y >= gridSize) return;
+
+    // Přepočet indexu do 1D pole
+    int index = id.y * gridSize + id.x;
+
+    // Zápis testovací hodnoty
+    terrainData[index] = float(id.x % 2) + float(id.y % 2) * 10.0;
+}

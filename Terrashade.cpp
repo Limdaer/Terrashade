@@ -22,7 +22,7 @@ bool isCursorFree = false; // Kurzorem lze pohybovat jen, když držíme ALT
 
 // Callback pro zpracování pohybu myší
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
-    if(!isCursorFree)
+    if (!isCursorFree)
         camera.ProcessMouseMovement(xpos, ypos);
 }
 
@@ -102,7 +102,7 @@ int main() {
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
-        processInput(window,deltaTime);
+        processInput(window, deltaTime);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
