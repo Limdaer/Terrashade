@@ -11,11 +11,12 @@ out vec3 FragPos;
 out vec3 Normal;
 
 // Uniformy pro řízení terénu
-uniform int octaves = 6;  // Počet hladin šumu
+uniform int octaves = 8;  // Počet hladin šumu
 uniform float persistence = 0.3; // Jak moc se snižuje amplituda s další hladinou
 uniform float lacunarity = 2.0;  // Jak moc se zvyšuje frekvence s další hladinou
-uniform float heightScale = 10.0;
+uniform float heightScale = 10.0;   
 uniform float edgeSharpness = 3.5;
+uniform float scale = 5.0;
 
 //Pomocí kubické interpolace - 
 // Funkce pro fade efekt - verze pro float
@@ -131,9 +132,29 @@ float simplexNoise(vec2 v) {
 
     return 70.0 * (t0 * dot(g0, x0) + t1 * dot(g1, x1) + t2 * dot(g2, x2));
 }
+//Brownian Method pro Simplex Noise
+float fbm2(vec2 pos) {
+    float total = 0.0;
+    float amplitude = 1.0;
+    float frequency = 0.5;
+    float maxValue = 0.0; 
+
+    for (int i = 0; i < octaves; i++) {
+        total += simplexNoise(pos * frequency) * amplitude;
+        maxValue += amplitude;
+        amplitude *= persistence;  // Každá další vrstva má menší vliv
+        frequency *= lacunarity;  // Každá další vrstva je jemnější
+    }
+
+    return total / maxValue; // Normalizace do rozsahu [-1,1]
+}
 
 // Voronoi Noise generování výšky
-float voronoiNoise(vec2 pos, float edgeSharpness) {
+float voronoiNoise(vec2 pos, float edgeSharpness, float scale) {
+    float dynamicScale = scale * (0.5 + simplexNoise(pos * 0.1) * 0.5);
+
+    pos *= dynamicScale; // Každá buňka má jinou velikost
+
     vec2 cell = floor(pos); // Najdeme buňku, ve které jsme
     vec2 localPos = fract(pos); // Relativní pozice uvnitř buňky
 
@@ -148,8 +169,8 @@ float voronoiNoise(vec2 pos, float edgeSharpness) {
         }
     }
     //smoothstep nastavuje hladší přechod mezi hodnotami (edge1,edge2,x)
-    float smoothHeight = smoothstep(0.3,1.0,minDist);
-    return -pow(smoothHeight,edgeSharpness);
+    //float smoothHeight = smoothstep(0.3,1.0,minDist);
+    return -pow(minDist,edgeSharpness);
 }
 
 // Hlavní funkce vertex shaderu
@@ -159,9 +180,13 @@ void main() {
     // Výpočet výšky terénu pomocí Voronoi Diagram + Perlin Noise
     //float height = (fbm(aPos.xz * 0.1) + voronoiNoise(aPos.xz * 0.1, edgeSharpness)) * heightScale;
     //Výpočet výšky terénu pomocí Simplex Noise
-    //float height = -pow((simplexNoise(aPos.xz * 0.1) * 0.5 + 0.5), 2.5) * heightScale;
+    //float height = simplexNoise(aPos.xz * 0.1) * (heightScale * 0.5);
     //Výpočet výšky terénu pomocí Simplex Noise a Voronoi
-    float height = (-pow((simplexNoise(aPos.xz * 0.1) * 0.5 + 0.5), 2.5) + voronoiNoise(aPos.xz * 0.1, edgeSharpness)) * heightScale;
+    //float height = (simplexNoise(aPos.xz * 0.1) + voronoiNoise(aPos.xz * 0.1, edgeSharpness)) * (heightScale * 0.5);
+    //Výpočet výšky terénu pomocí FBM simplex
+    //float height = fbm2(aPos.xz * 0.1) * heightScale;
+    //Voronoi
+    float height = voronoiNoise(aPos.xz * 0.1, edgeSharpness, scale) * heightScale;
 
     vec3 newPosition = vec3(aPos.x, height, aPos.z);
 
@@ -177,14 +202,22 @@ void main() {
     //+ voronoiNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1, edgeSharpness)) * heightScale) - height;
 
     // Výpočet normály Simplex Noise
-    //float dx = -pow((simplexNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1) * 0.5 + 0.5), 2.5) * heightScale - height;
-    //float dz = -pow((simplexNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1) * 0.5 + 0.5), 2.5) * heightScale - height;
+    //float dx = -simplexNoise(aPos.xz * 0.1) * (heightScale * 0.5);
+    //float dz = -simplexNoise(aPos.xz * 0.1) * (heightScale * 0.5);
 
     // Výpočet normály Simplex Noise a Voronoi
-    float dx = ((-pow((simplexNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1) * 0.5 + 0.5), 2.5) 
-    + voronoiNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1, edgeSharpness)) * heightScale) - height;
-    float dz = ((-pow((simplexNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1) * 0.5 + 0.5), 2.5) 
-    + voronoiNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1, edgeSharpness)) * heightScale) - height;
+    //float dx = simplexNoise(aPos.xz * 0.1) * (heightScale * 0.5)
+    //+ voronoiNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1, edgeSharpness) * heightScale * 0.5;
+    //float dz = simplexNoise(aPos.xz * 0.1) * (heightScale * 0.5)
+    //+ voronoiNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1, edgeSharpness) * heightScale * 0.5;
+
+    //Výpočet normály FBM Simplex Noise
+    //float dx = fbm2((aPos.xz + vec2(1.0, 0.0)) * 0.1) * heightScale - height;
+    //float dz = fbm2((aPos.xz + vec2(0.0, 1.0)) * 0.1) * heightScale - height;
+
+    //Voronoi
+    float dx = voronoiNoise((aPos.xz + vec2(1.0, 0.0)) * 0.1, edgeSharpness, scale) * heightScale - height;
+    float dz = voronoiNoise((aPos.xz + vec2(0.0, 1.0)) * 0.1, edgeSharpness, scale) * heightScale - height;
 
 
     vec3 calculatedNormal = normalize(vec3(-dx, 1.0, -dz));

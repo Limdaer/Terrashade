@@ -4,7 +4,7 @@
 
 Camera::Camera(glm::vec3 position)
     : Position(position), Front(glm::vec3(0.0f, 0.0f, -1.0f)), Up(glm::vec3(0.0f, 1.0f, 0.0f)),
-    WorldUp(Up), Yaw(-90.0f), Pitch(0.0f), MovementSpeed(5.0f), MouseSensitivity(0.1f),
+    WorldUp(Up), Yaw(-90.0f), Pitch(0.0f), MovementSpeed(10.0f), MouseSensitivity(0.1f),
     firstMouse(true), lastX(400), lastY(300) {
     updateCameraVectors();
 }
@@ -13,8 +13,10 @@ glm::mat4 Camera::GetViewMatrix() {
     return glm::lookAt(Position, Position + Front, Up);
 }
 
-void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime) {
-    float velocity = MovementSpeed * deltaTime;
+void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime, bool boost) {
+    float speedMultiplier = boost ? 2.5f : 1.0f; // Zrychlení pøi stisknutí SHIFT
+    float velocity = MovementSpeed * deltaTime * speedMultiplier;
+
     if (direction == FORWARD)
         Position += Front * velocity;
     if (direction == BACKWARD)
@@ -23,7 +25,12 @@ void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime) {
         Position -= Right * velocity;
     if (direction == RIGHT)
         Position += Right * velocity;
+    if (direction == UP)
+        Position += WorldUp * velocity; //(SPACE)
+    if (direction == DOWN)
+        Position -= WorldUp * velocity; //(CTRL)
 }
+
 
 void Camera::ProcessMouseMovement(float xpos, float ypos) {
     if (firstMouse) {
