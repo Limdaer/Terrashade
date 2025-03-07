@@ -101,7 +101,7 @@ int main() {
     Shader terrainShader("Shaders/terrain.vert", "Shaders/terrain.frag");
 
     // Vytvoření terénu
-    Terrain terrain(100); // 100x100 mřížka
+    Terrain terrain(1000); // 100x100 mřížka
 
     // Hlavní renderovací smyčka
     while (!glfwWindowShouldClose(window)) {
@@ -131,13 +131,13 @@ int main() {
         terrainShader.SetVec3("lightDir", glm::normalize(lightDir));
 
         // Barva světla a terénu
-        terrainShader.SetVec3("lightColor", glm::vec3(1.0f, 1.0f, 0.9f)); // Teplé světlo
+        terrainShader.SetVec3("lightColor", glm::vec3(0.8f, 1.0f, 0.9f)); // Teplé světlo
         terrainShader.SetVec3("terrainColor", glm::vec3(0.2f, 0.6f, 0.2f)); // Zelený terén
 
         // Nastavení ambient, difuzního a spekulárního světla
         terrainShader.SetFloat("ambientStrength", 0.2f);
-        terrainShader.SetFloat("diffuseStrength", 0.8f);
-        terrainShader.SetFloat("specularStrength", 0.5f);
+        terrainShader.SetFloat("diffuseStrength", 1.3f);
+        terrainShader.SetFloat("specularStrength", 0.4f);
         terrainShader.SetFloat("shininess", 32.0f);
 
         // Pozice kamery

@@ -12,6 +12,7 @@ public:
 
     // Konstruktor načítá vertex a fragment shader ze souborů a sestaví program
     Shader(const char* vertexPath, const char* fragmentPath);
+    Shader(const char* computePath);
 
     // Aktivuje shader program
     void Use();

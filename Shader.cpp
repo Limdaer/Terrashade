@@ -38,6 +38,28 @@ Shader::Shader(const char* vertexPath, const char* fragmentPath) {
     glDeleteShader(fragment);
 }
 
+Shader::Shader(const char* computePath) {
+    std::cout << "Loading Compute Shader: " << computePath << std::endl;
+
+    std::string computeCode = LoadShaderSource(computePath);
+    const char* cShaderCode = computeCode.c_str();
+
+    unsigned int compute;
+    compute = glCreateShader(GL_COMPUTE_SHADER);
+    glShaderSource(compute, 1, &cShaderCode, NULL);
+    glCompileShader(compute);
+    CheckCompileErrors(compute, "COMPUTE");
+
+    ID = glCreateProgram();
+    glAttachShader(ID, compute);
+    glLinkProgram(ID);
+    CheckCompileErrors(ID, "PROGRAM");
+
+    glDeleteShader(compute);
+
+    std::cout << "Compute Shader Loaded Successfully!" << std::endl;
+}
+
 // Aktivuje shader
 void Shader::Use() {
     glUseProgram(ID);
