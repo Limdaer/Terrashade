@@ -10,14 +10,6 @@ layout (std430, binding = 1) buffer NormalBuffer {
     vec4 normals[];
 };
 
-layout (std430, binding = 2) buffer MaxValues {
-    ivec2 maxValues;
-};
-
-layout (std430, binding = 3) buffer WorkGroupData {
-    ivec3 workGroupInfo;       // WorkGroup ID
-    ivec3 localInvocationInfo; // LocalInvocation ID
-};
 
 
 
@@ -238,18 +230,6 @@ void main() {
     if (x >= gridSize || y >= gridSize) return;
 
     uint index = y * gridSize + x;
-
-    atomicMax(maxValues.x, int(x));
-    atomicMax(maxValues.y, int(y));
-
-    if (gl_LocalInvocationIndex == 0) {
-        atomicMax(workGroupInfo.x, int(gl_WorkGroupID.x));
-        atomicMax(workGroupInfo.y, int(gl_WorkGroupID.y));
-        atomicMax(workGroupInfo.z, int(gl_NumWorkGroups.x)); // Celkový počet skupin
-    }
-        atomicMax(localInvocationInfo.x, int(gl_LocalInvocationID.x));
-        atomicMax(localInvocationInfo.y, int(gl_LocalInvocationID.y));
-        atomicMax(localInvocationInfo.z, 16); // Velikost WorkGroup
 
     float worldX = float(x) - float(gridSize) / 2.0;
     float worldZ = float(y) - float(gridSize) / 2.0;

@@ -33,26 +33,6 @@ void Terrain::GenerateTerrain() {
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, normalsSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-    glm::ivec2 initialMaxValues = glm::ivec2(0, 0);
-
-    glGenBuffers(1, &maxValuesSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, maxValuesSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(glm::ivec2), &initialMaxValues, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, maxValuesSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-    glm::ivec3 initialWorkGroupData = glm::ivec3(0, 0, 0);
-    glm::ivec3 initialLocalInvocationData = glm::ivec3(0, 0, 0);
-
-    glGenBuffers(1, &workGroupSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, workGroupSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(glm::ivec3) * 2, NULL, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, workGroupSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-
-
-
     // EBO pro indexy trojúhelníků
     std::vector<unsigned int> indices;
     for (int row = 0; row < gridSize - 1; row++) {
@@ -106,28 +86,6 @@ void Terrain::ComputeTerrain() {
 
     glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1); // Vypocty
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); // Zápis do bufferu před čtením
-    glm::ivec2 maxValues;
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, maxValuesSSBO);
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::ivec2), &maxValues);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-    std::cout << "Max X: " << maxValues.x << ", Max Y: " << maxValues.y << std::endl;
-
-    glm::ivec3 workGroupValues, localInvocationValues;
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, workGroupSSBO);
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::ivec3), &workGroupValues);
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(glm::ivec3), sizeof(glm::ivec3), &localInvocationValues);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-    std::cout << "WorkGroupID X: " << workGroupValues.x
-        << ", WorkGroupID Y: " << workGroupValues.y
-        << ", NumWorkGroups X: " << workGroupValues.z << std::endl;
-
-    std::cout << "LocalInvocationID X: " << localInvocationValues.x
-        << ", LocalInvocationID Y: " << localInvocationValues.y
-        << ", WorkGroup Size: " << localInvocationValues.z << std::endl;
-
-
 
     glUseProgram(0);
 }

@@ -86,6 +86,7 @@ int main() {
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSwapInterval(1);
 
 
     // Načtení OpenGL funkcí pomocí GLAD
@@ -101,9 +102,8 @@ int main() {
     Shader terrainShader("Shaders/terrain.vert", "Shaders/terrain.frag");
 
     // Vytvoření terénu
-    Terrain terrain(1000); // 100x100 mřížka
+    Terrain terrain(100); // 100x100 mřížka
 
-    // Hlavní renderovací smyčka
     while (!glfwWindowShouldClose(window)) {
         // Vyčištění obrazovky
         float currentFrame = static_cast<float>(glfwGetTime());
