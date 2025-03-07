@@ -28,14 +28,21 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 
 // Zpracování vstupu z klávesnice
 void processInput(GLFWwindow* window, float deltaTime) {
+    bool boost = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS; // Zrychlení pohybu
+
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        camera.ProcessKeyboard(FORWARD, deltaTime); // Pohyb dopředu
+        camera.ProcessKeyboard(FORWARD, deltaTime, boost);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        camera.ProcessKeyboard(BACKWARD, deltaTime); // Pohyb dozadu
+        camera.ProcessKeyboard(BACKWARD, deltaTime, boost);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camera.ProcessKeyboard(LEFT, deltaTime); // Pohyb doleva
+        camera.ProcessKeyboard(LEFT, deltaTime, boost);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        camera.ProcessKeyboard(RIGHT, deltaTime); // Pohyb doprava
+        camera.ProcessKeyboard(RIGHT, deltaTime, boost);
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+        camera.ProcessKeyboard(UP, deltaTime, boost); // Pohyb nahoru (SPACE)
+    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+        camera.ProcessKeyboard(DOWN, deltaTime, boost); // Pohyb dolů (CTRL)
+
     // Přepnutí režimu kurzoru pomocí ALT
     if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) {
         if (!isCursorFree) {
@@ -69,7 +76,7 @@ int main() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     // Vytvoření okna
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Procedural Terrain", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1600, 1200, "Procedural Terrain", nullptr, nullptr);
     if (!window) {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
