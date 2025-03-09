@@ -22,8 +22,8 @@ uniform float heightScale = 10.0;
 uniform float edgeSharpness = 3.5;
 uniform float scale = 2.0;
 uniform float perlinWeight = 0.0;
-uniform float voronoiWeight = 0.2;
-uniform float simplexWeight = 0.6;
+uniform float voronoiWeight = 0.0;
+uniform float simplexWeight = 1.0;
 uniform float ridgeWeight = 0.0;
 
 //Pomocí kubické interpolace - 

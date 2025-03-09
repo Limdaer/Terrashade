@@ -4,6 +4,7 @@
 #include "Camera.h"
 #include "Shader.h"
 #include "Terrain.h"
+#include "Texture.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -101,8 +102,14 @@ int main() {
     // Načtení shaderů
     Shader terrainShader("Shaders/terrain.vert", "Shaders/terrain.frag");
 
+    Texture grassTexture("textures/grass/text.jpg");
+    Texture grassNormalTexture("textures/grass/normal.jpg");
+    Texture grassRoughnessTexture("textures/grass/rough.jpg");
+    Texture grassAoTexture("textures/grass/ao.jpg");
+
+
     // Vytvoření terénu
-    Terrain terrain(100); // 100x100 mřížka
+    Terrain terrain(1000); // 1000x1000 mřížka
 
     while (!glfwWindowShouldClose(window)) {
         // Vyčištění obrazovky
@@ -116,7 +123,7 @@ int main() {
 
         // Výpočet kamerových matic
         glm::mat4 view = camera.GetViewMatrix();
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 500.0f);
 
         // Použití shaderu
         glm::mat4 model = glm::mat4(1.0f);
@@ -137,11 +144,30 @@ int main() {
         // Nastavení ambient, difuzního a spekulárního světla
         terrainShader.SetFloat("ambientStrength", 0.2f);
         terrainShader.SetFloat("diffuseStrength", 1.3f);
-        terrainShader.SetFloat("specularStrength", 0.4f);
+        terrainShader.SetFloat("specularStrength", 0.3f);
         terrainShader.SetFloat("shininess", 32.0f);
 
         // Pozice kamery
         terrainShader.SetVec3("viewPos", camera.Position);
+
+        // Nastavení texturových jednotek pro shader
+        terrainShader.SetInt("terrainTexture", 0);
+        terrainShader.SetInt("normalMap", 1);
+        terrainShader.SetInt("roughnessMap", 2);
+        terrainShader.SetInt("aoMap", 3);
+
+        // Aktivace textur před vykreslením
+        glActiveTexture(GL_TEXTURE0);
+        grassTexture.Bind(0);
+
+        glActiveTexture(GL_TEXTURE1);
+        grassNormalTexture.Bind(1);
+
+        glActiveTexture(GL_TEXTURE2);
+        grassRoughnessTexture.Bind(2);
+
+        glActiveTexture(GL_TEXTURE3);
+        grassAoTexture.Bind(3);
 
         // Vykreslení terénu
         terrain.Draw();

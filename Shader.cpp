@@ -124,3 +124,8 @@ void Shader::SetVec3(const std::string& name, const glm::vec3& value) {
 void Shader::SetFloat(const std::string& name, float value) {
     glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
 }
+
+// Nastaví uniformní proměnnou int
+void Shader::SetInt(const std::string& name, int value) {
+    glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
+}
