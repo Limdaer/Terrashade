@@ -20,28 +20,30 @@ uniform float shininess = 32.0;
 // Kamera (pro spekulární světlo)
 uniform vec3 viewPos;
 
+// Výška pro mixování textur
+uniform float grassHeight = 10.0;
+uniform float rockHeight = 25.0;
+uniform float snowHeight = 40.0;
+
 // Textura terénu
-uniform sampler2D terrainTexture;
-uniform sampler2D normalMap;
-uniform sampler2D roughnessMap;
-uniform sampler2D aoMap;
+uniform sampler2D grassTexture, grassNormal, grassRough, grassAo;
+uniform sampler2D rockTexture, rockNormal, rockRough, rockAo;
+uniform sampler2D snowTexture, snowNormal, snowRough, snowAo;
 
 
-vec3 GetNormalFromMap() {
-    vec3 tangentNormal = texture(normalMap, TexCoords).rgb;
-    tangentNormal = tangentNormal * 2.0 - 1.0; // Konverze z [0,1] na [-1,1]
-    return -normalize(tangentNormal);
-}
-
-
-void main() {
-    // Normalizace normály
-    vec3 norm = normalize(Normal); // Použití normálové textury místo interpolované normály
-
+vec3 CalculateLighting(
+    sampler2D textureMap, sampler2D normalMap, sampler2D roughnessMap, sampler2D aoMap
+) {
+    // Načtení dat z textur
+    vec3 textureColor = texture(textureMap, TexCoords).rgb;
+    vec3 normalTex = texture(normalMap, TexCoords).rgb * 2.0 - 1.0;
     float roughness = texture(roughnessMap, TexCoords).r;
+    float ao = texture(aoMap, TexCoords).r;
+
+    // Použití normály z SSBO místo normal mapy
+    vec3 norm = normalize(Normal);
 
     // AMBIENTNÍ SVĚTLO
-    float ao = texture(aoMap, TexCoords).r;
     vec3 ambient = ambientStrength * lightColor * ao;
 
     // DIFUZNÍ SVĚTLO
@@ -54,11 +56,24 @@ void main() {
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), mix(4.0, 64.0, 1.0 - roughness)); 
     vec3 specular = specularStrength * spec * lightColor;
 
-
-    // Načtení textury trávy
-    vec3 textureColor = texture(terrainTexture, TexCoords).rgb;
-
     // Finální barva: kombinace textury a Phongova osvětlení
-    vec3 result = (ambient + diffuse + specular) * textureColor;
-    FragColor = vec4(result, 1.0);
+    return (ambient + diffuse + specular) * textureColor;
+}
+
+vec3 GetTextureByHeight() {
+    float height = FragPos.y;
+
+    if (height < grassHeight)
+        return CalculateLighting(grassTexture, grassNormal, grassRough, grassAo);
+    else if (height < rockHeight)
+        return CalculateLighting(rockTexture, rockNormal, rockRough, rockAo);
+    else
+        return CalculateLighting(snowTexture, snowNormal, snowRough, snowAo);
+}
+
+
+void main() {
+    vec3 finalColor = GetTextureByHeight();
+
+    FragColor = vec4(finalColor, 1.0);
 }

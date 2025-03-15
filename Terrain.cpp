@@ -89,3 +89,14 @@ void Terrain::ComputeTerrain() {
 
     glUseProgram(0);
 }
+
+void Terrain::UpdateTerrain(float scale, float edgeSharpness, int biomeCount, float heightScale) {
+    computeShader.Use();  // Aktivace compute shaderu
+    computeShader.SetFloat("scale", scale);
+    computeShader.SetFloat("edgeSharpness", edgeSharpness);
+    computeShader.SetUInt("biomeCount", biomeCount);
+    computeShader.SetFloat("heightScale", heightScale);
+
+    glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);  
+}

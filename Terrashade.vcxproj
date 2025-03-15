@@ -108,7 +108,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\Limdaer\Desktop\škola\Programko\BP\Terrashade\Externals\glm;C:\Users\Limdaer\Desktop\škola\Programko\BP\Terrashade\Externals\glfw-3.4\include;C:\Users\Limdaer\Desktop\škola\Programko\BP\Terrashade\Externals\glad\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\wizar\OneDrive\Plocha\Skola\BP\Terrashade\Externals\imgui;C:\Users\Limdaer\Desktop\škola\Programko\BP\Terrashade\Externals\glm;C:\Users\Limdaer\Desktop\škola\Programko\BP\Terrashade\Externals\glfw-3.4\include;C:\Users\Limdaer\Desktop\škola\Programko\BP\Terrashade\Externals\glad\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -136,6 +136,13 @@
   <ItemGroup>
     <ClCompile Include="Externals\glad\src\glad.c" />
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="Externals\imgui\imgui.cpp" />
+    <ClCompile Include="Externals\imgui\imgui_demo.cpp" />
+    <ClCompile Include="Externals\imgui\imgui_draw.cpp" />
+    <ClCompile Include="Externals\imgui\imgui_impl_glfw.cpp" />
+    <ClCompile Include="Externals\imgui\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="Externals\imgui\imgui_tables.cpp" />
+    <ClCompile Include="Externals\imgui\imgui_widgets.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="Terrain.cpp" />
@@ -143,6 +150,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="Externals\imgui\imconfig.h" />
+    <ClInclude Include="Externals\imgui\imgui.h" />
+    <ClInclude Include="Externals\imgui\imgui_impl_glfw.h" />
+    <ClInclude Include="Externals\imgui\imgui_impl_opengl3.h" />
+    <ClInclude Include="Externals\imgui\imgui_internal.h" />
+    <ClInclude Include="Externals\imgui\imstb_rectpack.h" />
+    <ClInclude Include="Externals\imgui\imstb_textedit.h" />
+    <ClInclude Include="Externals\imgui\imstb_truetype.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="stb_image.h" />

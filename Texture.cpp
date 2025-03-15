@@ -8,7 +8,7 @@ Texture::Texture(const std::string& path) {
     glBindTexture(GL_TEXTURE_2D, ID);
 
     // Debug výpis: Ověření vytvoření textury
-    std::cout << "Načítám texturu: " << path << std::endl;
+    std::cout << "Nacitam texturu: " << path << std::endl;
 
     // Nastavení filtrů textury
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -27,11 +27,11 @@ Texture::Texture(const std::string& path) {
         else if (nrChannels == 3) format = GL_RGB;
         else if (nrChannels == 4) format = GL_RGBA;
         else {
-            std::cerr << "Neznámý formát textury: " << path << " (" << nrChannels << " kanálů)" << std::endl;
+            std::cerr << "Neznamy format textury: " << path << " (" << nrChannels << " kanalu)" << std::endl;
         }
 
         // Debug výpis: Ověření rozměrů textury
-        std::cout << "Rozměry textury: " << width << "x" << height << " (" << nrChannels << " kanálů)" << std::endl;
+        std::cout << "Rozmery textury: " << width << "x" << height << " (" << nrChannels << " kanalu)" << std::endl;
 
         // Nastavení dat textury
         glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
@@ -39,7 +39,7 @@ Texture::Texture(const std::string& path) {
         // Kontrola OpenGL chyb před generováním mipmap
         GLenum err = glGetError();
         if (err != GL_NO_ERROR) {
-            std::cerr << "OpenGL chyba před glGenerateMipmap: " << err << std::endl;
+            std::cerr << "OpenGL chyba pred glGenerateMipmap: " << err << std::endl;
         }
 
         // Generování mipmap
@@ -52,7 +52,7 @@ Texture::Texture(const std::string& path) {
         }
     }
     else {
-        std::cerr << "Chyba: Nepodařilo se načíst texturu " << path << std::endl;
+        std::cerr << "Chyba: Nepodarilo se nacist texturu " << path << std::endl;
     }
 
     stbi_image_free(data);

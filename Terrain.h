@@ -13,6 +13,7 @@ public:
     ~Terrain();
     void Draw();
     void ComputeTerrain();
+    void UpdateTerrain(float scale, float edgeSharpness, int biomeCount, float heightScale);
 
 private:
     unsigned int VAO, VBO, EBO;
