@@ -7,13 +7,14 @@ in vec3 Normal;
 in vec2 TexCoords; // Přijaté UV souřadnice
 
 // Uniformy pro osvětlení
-uniform vec3 lightDir = normalize(vec3(-1.0, -1.0, -1.0)); // Směr světla
-uniform vec3 lightColor = vec3(1.0, 1.0, 0.9);  // Barva světla
+uniform vec3 lightDir; // Směr světla
+uniform vec3 lightColor;  // Barva světla
+uniform float lightIntensity;
 
 // Parametry Phongova osvětlení
-uniform float ambientStrength = 0.2;
+uniform float ambientStrength;
 uniform float diffuseStrength = 0.8;
-uniform float specularStrength = 0.5;
+uniform float specularStrength;
 uniform float shininess = 32.0;
 
 
@@ -24,6 +25,7 @@ uniform vec3 viewPos;
 uniform float grassHeight = 10.0;
 uniform float rockHeight = 25.0;
 uniform float snowHeight = 40.0;
+uniform float blendRange = 5.0;
 
 // Textura terénu
 uniform sampler2D grassTexture, grassNormal, grassRough, grassAo;
@@ -44,17 +46,17 @@ vec3 CalculateLighting(
     vec3 norm = normalize(Normal);
 
     // AMBIENTNÍ SVĚTLO
-    vec3 ambient = ambientStrength * lightColor * ao;
+    vec3 ambient = ambientStrength * lightColor * ao * lightIntensity;
 
     // DIFUZNÍ SVĚTLO
     float diff = max(dot(norm, -lightDir), 0.0);
-    vec3 diffuse = diffuseStrength * diff * lightColor;
+    vec3 diffuse = diffuseStrength * diff * lightColor * lightIntensity;
 
     // SPEKULÁRNÍ SVĚTLO
     vec3 viewDir = normalize(viewPos - FragPos);
     vec3 reflectDir = reflect(lightDir, norm);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), mix(4.0, 64.0, 1.0 - roughness)); 
-    vec3 specular = specularStrength * spec * lightColor;
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
+    vec3 specular = specularStrength * spec * lightColor * lightIntensity;
 
     // Finální barva: kombinace textury a Phongova osvětlení
     return (ambient + diffuse + specular) * textureColor;
@@ -63,12 +65,17 @@ vec3 CalculateLighting(
 vec3 GetTextureByHeight() {
     float height = FragPos.y;
 
-    if (height < grassHeight)
-        return CalculateLighting(grassTexture, grassNormal, grassRough, grassAo);
-    else if (height < rockHeight)
-        return CalculateLighting(rockTexture, rockNormal, rockRough, rockAo);
-    else
-        return CalculateLighting(snowTexture, snowNormal, snowRough, snowAo);
+    vec3 grassColor = CalculateLighting(grassTexture, grassNormal, grassRough, grassAo);
+    vec3 rockColor = CalculateLighting(rockTexture, rockNormal, rockRough, rockAo);
+    vec3 snowColor = CalculateLighting(snowTexture, snowNormal, snowRough, snowAo);
+
+    // Výpočet míchání textur pomocí smoothstep
+    float grassBlend = 1.0 - smoothstep(grassHeight, grassHeight + blendRange, height);
+    float rockBlend = smoothstep(grassHeight, grassHeight + blendRange, height) * (1.0 - smoothstep(rockHeight, rockHeight + blendRange, height));
+    float snowBlend = smoothstep(rockHeight, rockHeight + blendRange, height);
+
+    // Lineární interpolace mezi barvami
+    return grassColor * grassBlend + rockColor * rockBlend + snowColor * snowBlend;
 }
 
 

@@ -20,17 +20,17 @@ struct Params {
 
 // Uniformy pro řízení terénu
 uniform int gridSize;
-uniform int octaves = 8;  // Počet hladin šumu
-uniform float persistence = 0.3; // Jak moc se snižuje amplituda s další hladinou
-uniform float lacunarity = 2.0;  // Jak moc se zvyšuje frekvence s další hladinou
+uniform uint octaves;  // Počet hladin šumu
+uniform float persistence; // Jak moc se snižuje amplituda s další hladinou
+uniform float lacunarity;  // Jak moc se zvyšuje frekvence s další hladinou
 uniform float heightScale;   
 uniform float edgeSharpness; //Voronoi
 uniform float scale;
-uniform float perlinWeight = 0.0;
 uniform uint biomeCount;
+/*uniform float perlinWeight = 0.0;
 uniform float voronoiWeight = 1.0;
 uniform float simplexWeight = 0.0;
-uniform float ridgeWeight = 0.0;
+uniform float ridgeWeight = 0.0;*/
 
 //Pomocí kubické interpolace - 
 // Funkce pro fade efekt - verze pro float

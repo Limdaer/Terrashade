@@ -44,9 +44,9 @@ void processInput(GLFWwindow* window, float deltaTime) {
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime, boost);
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
-        camera.ProcessKeyboard(UP, deltaTime, boost); // Pohyb nahoru (SPACE)
+        camera.ProcessKeyboard(UP, deltaTime, boost);
     if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
-        camera.ProcessKeyboard(DOWN, deltaTime, boost); // Pohyb dolů (CTRL)
+        camera.ProcessKeyboard(DOWN, deltaTime, boost);
 
     // Přepnutí režimu kurzoru pomocí ALT
     if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS) {
@@ -78,14 +78,22 @@ void initImGui(GLFWwindow* window) {
     ImGui_ImplOpenGL3_Init("#version 460");
 }
 
-void renderGUI(Terrain& terrain) {
-    ImGui::Begin("Terrain Settings");
+void renderGUI(Terrain& terrain, Shader& shader) {
+    ImGui::SetNextWindowSizeConstraints(ImVec2(300, 100), ImVec2(600, 800));
+    ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize); // Hlavní okno GUI
+
+    // **SEKCE TERÉNU**
+    ImGui::Text("Terrain Settings");
+    ImGui::Separator();
 
     static bool autoUpdate = false;
     static float terrainScale = 10.0f;
     static float edgeSharpness = 20.0f;
     static int biomeCount = 3;
     static float heightScale = 10.0f;
+    static int octaves = 8;
+    static float persistence = 0.3f;
+    static float lacunarity = 2.0f;
 
     ImGui::Checkbox("Auto Update", &autoUpdate);
 
@@ -94,24 +102,73 @@ void renderGUI(Terrain& terrain) {
     updated |= ImGui::SliderFloat("Edge Sharpness", &edgeSharpness, 1.0f, 50.0f);
     updated |= ImGui::SliderInt("Biome Count", &biomeCount, 1, 7);
     updated |= ImGui::SliderFloat("Height Scale", &heightScale, 0.0f, 200.0f);
+    updated |= ImGui::SliderInt("Octaves", &octaves, 1, 10);
+    updated |= ImGui::SliderFloat("Persistence", &persistence, 0.1f, 1.0f);
+    updated |= ImGui::SliderFloat("Lacunarity", &lacunarity, 1.0f, 4.0f);
 
     if (StartGUI) {
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale);
-        StartGUI == false;
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale, octaves, persistence, lacunarity);
     }
 
     if (updated && autoUpdate) {
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale);
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale, octaves, persistence, lacunarity);
     }
 
     if (!autoUpdate && ImGui::Button("Regenerate Terrain")) {
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale);
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale, octaves, persistence, lacunarity);
+    }
+
+    if(!autoUpdate)
+        ImGui::SameLine();
+
+    if (ImGui::Button("Reset Terrain")) {
+        terrainScale = 10.0f;
+        edgeSharpness = 20.0f;
+        biomeCount = 3;
+        heightScale = 10.0f;
+        octaves = 8;
+        persistence = 0.3f;
+        lacunarity = 2.0f;
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale, octaves, persistence, lacunarity);
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Text("Lighting Settings");
+
+    static float lightIntensity = 1.0f;
+    static float ambientStrength = 0.2f;
+    static float diffuseStrength = 0.8f;
+    static float specularStrength = 0.3f;
+    static float shininess = 32.0f;
+    static glm::vec3 lightDir = glm::vec3(-1.0f, -1.0f, -1.0f);
+    static glm::vec3 lightColor = glm::vec3(0.8f, 1.0f, 0.9f);
+
+    bool updated_light = false;
+    updated_light |= ImGui::SliderFloat("Light Intensity", &lightIntensity, 0.0f, 2.0f);
+    updated_light |= ImGui::SliderFloat("Ambient Strength", &ambientStrength, 0.0f, 1.0f);
+    updated_light |= ImGui::SliderFloat("Diffuse Strength", &diffuseStrength, 0.0f, 2.0f);
+    updated_light |= ImGui::SliderFloat("Specular Strength", &specularStrength, 0.0f, 1.0f);
+    updated_light |= ImGui::SliderFloat("Shininess", &shininess, 1.0f, 128.0f);
+    updated_light |= ImGui::SliderFloat("Light Dir X", &lightDir.x, -1.0f, 1.0f);
+    updated_light |= ImGui::SliderFloat("Light Dir Y", &lightDir.y, -1.0f, 1.0f);
+    updated_light |= ImGui::SliderFloat("Light Dir Z", &lightDir.z, -1.0f, 1.0f);
+    updated_light |= ImGui::ColorEdit3("Light Color", glm::value_ptr(lightColor));
+
+    if (updated_light || StartGUI) {
+        shader.Use();
+        shader.SetFloat("lightIntensity", lightIntensity);
+        shader.SetFloat("ambientStrength", ambientStrength);
+        shader.SetFloat("diffuseStrength", diffuseStrength);
+        shader.SetFloat("specularStrength", specularStrength);
+        shader.SetFloat("shininess", shininess);
+        shader.SetVec3("lightDir", glm::normalize(lightDir));
+        shader.SetVec3("lightColor", lightColor);
+        StartGUI = false;
     }
 
     ImGui::End();
 }
-
-
 
 
 void cleanupImGui() {
@@ -199,7 +256,7 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        renderGUI(terrain);
+        renderGUI(terrain, terrainShader);
 
         // Výpočet kamerových matic
         glm::mat4 view = camera.GetViewMatrix();
@@ -213,19 +270,6 @@ int main() {
         terrainShader.SetMat4("view", glm::value_ptr(view));
         terrainShader.SetMat4("projection", glm::value_ptr(projection));
 
-        // Směr světla
-        glm::vec3 lightDir(-1.0f, -1.0f, -1.0f);
-        terrainShader.SetVec3("lightDir", glm::normalize(lightDir));
-
-        // Barva světla a terénu
-        terrainShader.SetVec3("lightColor", glm::vec3(0.8f, 1.0f, 0.9f)); // Teplé světlo
-        terrainShader.SetVec3("terrainColor", glm::vec3(0.2f, 0.6f, 0.2f)); // Zelený terén
-
-        // Nastavení ambient, difuzního a spekulárního světla
-        terrainShader.SetFloat("ambientStrength", 0.2f);
-        terrainShader.SetFloat("diffuseStrength", 1.3f);
-        terrainShader.SetFloat("specularStrength", 0.3f);
-        terrainShader.SetFloat("shininess", 32.0f);
 
         // Pozice kamery
         terrainShader.SetVec3("viewPos", camera.Position);
