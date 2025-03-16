@@ -12,6 +12,113 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
+
+const char* gl_translate_error(GLenum code)
+{
+    switch (code)
+    {
+    case GL_INVALID_ENUM:                  return "INVALID_ENUM";
+    case GL_INVALID_VALUE:                 return "INVALID_VALUE";
+    case GL_INVALID_OPERATION:             return "INVALID_OPERATION";
+    case GL_STACK_OVERFLOW:                return "STACK_OVERFLOW";
+    case GL_STACK_UNDERFLOW:               return "STACK_UNDERFLOW";
+    case GL_OUT_OF_MEMORY:                 return "OUT_OF_MEMORY";
+    case GL_INVALID_FRAMEBUFFER_OPERATION: return "INVALID_FRAMEBUFFER_OPERATION";
+    default:                               return "UNKNOWN_ERROR";
+    }
+}
+
+GLenum _gl_check_error(const char* file, int line)
+{
+    GLenum errorCode = 0;
+    while ((errorCode = glGetError()) != GL_NO_ERROR)
+    {
+        const char* error = gl_translate_error(errorCode);
+        printf("GL error %s | %s (%d)\n", error, file, line);
+    }
+    return errorCode;
+}
+
+#define gl_check_error() _gl_check_error(__FILE__, __LINE__) 
+
+void gl_debug_output_func(GLenum source,
+    GLenum type,
+    unsigned int id,
+    GLenum severity,
+    GLsizei length,
+    const char* message,
+    const void* userParam)
+{
+    // ignore non-significant error/warning codes
+    if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
+
+    (void)length;
+    (void)userParam;
+
+    const char* log = "LOG_DEBUG";
+    switch (severity)
+    {
+    case GL_DEBUG_SEVERITY_HIGH:
+    case GL_DEBUG_SEVERITY_MEDIUM:       log = "LOG_ERROR"; break;
+    case GL_DEBUG_SEVERITY_LOW:          log = "LOG_WARN";  break;
+    case GL_DEBUG_SEVERITY_NOTIFICATION: log = "LOG_INFO";  break;
+    };
+
+    printf("%s GL error (%d): %s\n", log, (int)id, message);
+    switch (source)
+    {
+    case GL_DEBUG_SOURCE_API:             printf("%s Source: API\n", log); break;
+    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   printf("%s Source: Window System\n", log); break;
+    case GL_DEBUG_SOURCE_SHADER_COMPILER: printf("%s Source: Shader Compiler\n", log); break;
+    case GL_DEBUG_SOURCE_THIRD_PARTY:     printf("%s Source: Third Party\n", log); break;
+    case GL_DEBUG_SOURCE_APPLICATION:     printf("%s Source: Application\n", log); break;
+    case GL_DEBUG_SOURCE_OTHER:           printf("%s Source: Other\n", log); break;
+    };
+
+    switch (type)
+    {
+    case GL_DEBUG_TYPE_ERROR:               printf("%s Type: Error\n", log); break;
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: printf("%s Type: Deprecated Behaviour\n", log); break;
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  printf("%s Type: Undefined Behaviour\n", log); break;
+    case GL_DEBUG_TYPE_PORTABILITY:         printf("%s Type: Portability\n", log); break;
+    case GL_DEBUG_TYPE_PERFORMANCE:         printf("%s Type: Performance\n", log); break;
+    case GL_DEBUG_TYPE_MARKER:              printf("%s Type: Marker\n", log); break;
+    case GL_DEBUG_TYPE_PUSH_GROUP:          printf("%s Type: Push Group\n", log); break;
+    case GL_DEBUG_TYPE_POP_GROUP:           printf("%s Type: Pop Group\n", log); break;
+    case GL_DEBUG_TYPE_OTHER:               printf("%s Type: Other\n", log); break;
+    };
+}
+
+
+static void gl_post_call_gl_callback(void* ret, const char* name, GLADapiproc apiproc, int len_args, ...) {
+    (void)ret;
+    (void)apiproc;
+    (void)len_args;
+
+    GLenum error_code = glad_glGetError();
+    if (error_code != GL_NO_ERROR)
+        printf("GL error %s in %s!\n", gl_translate_error(error_code), name);
+}
+
+void gl_debug_output_enable()
+{
+    int flags = 0;
+    glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+    if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
+    {
+        printf("GL Debug info enabled\n");
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(gl_debug_output_func, NULL);
+        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+    }
+    else
+        printf("GL Debug info wasnt enabled! Provide appropriate window hint!\n");
+
+    gladSetGLPostCallback(gl_post_call_gl_callback);
+    gladInstallGLDebug();
+}
+
 // Callback pro změnu velikosti okna, upravuje viewport
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
@@ -24,11 +131,39 @@ float deltaTime = 0.0f;  // Čas mezi aktuálním a posledním snímkem
 float lastFrame = 0.0f;
 bool isCursorFree = false; // Kurzorem lze pohybovat jen, když držíme ALT
 bool StartGUI = true;
+int editMode = 0;
+bool isEditingTerrain = false;
 
 // Callback pro zpracování pohybu myší
-void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
+    int screenWidth, screenHeight;
+    glfwGetWindowSize(window, &screenWidth, &screenHeight);
+    double centerX = screenWidth / 2.0;
+    double centerY = screenHeight / 2.0;
     if (!isCursorFree)
-        camera.ProcessMouseMovement(xpos, ypos);
+        camera.ProcessMouseMovement(xpos, ypos, false);
+
+    if (isEditingTerrain && glfwGetKey(window, GLFW_KEY_LEFT_ALT) != GLFW_PRESS) {
+        camera.ProcessMouseMovement(xpos, ypos, true);
+    }
+    //ZMENIT TOTO !!
+    if (xpos <= 1 || xpos >= screenWidth - 1 || ypos <= 1 || ypos >= screenHeight - 1) {
+        glfwSetCursorPos(window, centerX, centerY);
+        camera.lastX = centerX;
+        camera.lastY = centerY;
+    }
+}
+
+void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        editMode = 1;  // Režim zvětšování terénu
+    }
+    else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+        editMode = -1;  // Režim snižování terénu
+    }
+    else if (action == GLFW_RELEASE) {
+        editMode = 0;  // Žádná úprava
+    }
 }
 
 // Zpracování vstupu z klávesnice
@@ -78,11 +213,30 @@ void initImGui(GLFWwindow* window) {
     ImGui_ImplOpenGL3_Init("#version 460");
 }
 
-void renderGUI(Terrain& terrain, Shader& shader) {
+void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mouseX, double mouseY) {
     ImGui::SetNextWindowSizeConstraints(ImVec2(300, 100), ImVec2(600, 800));
     ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize); // Hlavní okno GUI
+    // **SEKCE UPRAV**
+    ImGui::Text("Terrain Settings");
+    ImGui::Separator();
 
-    // **SEKCE TERÉNU**
+    ImGui::Checkbox("Edit Terrain", &isEditingTerrain);
+
+    // Rezim uprav
+    if (isEditingTerrain) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
+    else if (!isCursorFree) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    }
+
+    if (isEditingTerrain) {
+        ImGui::SliderFloat("Modify Radius", &terrain.radius, 1.0f, 50.0f);
+        ImGui::SliderFloat("Modify Strength", &terrain.strength, -10.0f, 10.0f);
+        ImGui::SliderFloat("Modify Sigma", &terrain.sigma, 0.1f, terrain.radius / 2.0f);
+    }
+
+    // **SEKCE TERENU**
     ImGui::Text("Terrain Settings");
     ImGui::Separator();
 
@@ -94,6 +248,9 @@ void renderGUI(Terrain& terrain, Shader& shader) {
     static int octaves = 8;
     static float persistence = 0.3f;
     static float lacunarity = 2.0f;
+    static Params dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5 };
+    static Params plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0 };
+    static Params mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0 };
 
     ImGui::Checkbox("Auto Update", &autoUpdate);
 
@@ -130,6 +287,58 @@ void renderGUI(Terrain& terrain, Shader& shader) {
         persistence = 0.3f;
         lacunarity = 2.0f;
         terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale, octaves, persistence, lacunarity);
+        dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5 };
+        plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0 };
+        mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0 };
+        terrain.UpdateBiomeParams(dunesParams, plainsParams, mountainsParams);
+
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Biome Settings");
+
+
+    bool biomeUpdated = false;
+
+    ImGui::Text("Dunes");
+    biomeUpdated |= ImGui::SliderFloat("Dunes FBM Freq", &dunesParams.fbmFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Dunes FBM Amp", &dunesParams.fbmAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Dunes Ridge Freq", &dunesParams.ridgeFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Dunes Ridge Amp", &dunesParams.ridgeAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Dunes Voronoi Freq", &dunesParams.voroFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Dunes Voronoi Amp", &dunesParams.voroAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Dunes Morphed Freq", &dunesParams.morphedvoroFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Dunes Morphed Amp", &dunesParams.morphedvoroAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Dunes Sand Freq", &dunesParams.sandFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Dunes Sand Amp", &dunesParams.sandAmp, 0.0f, 5.0f);
+
+    ImGui::Text("Plains");
+    biomeUpdated |= ImGui::SliderFloat("Plains FBM Freq", &plainsParams.fbmFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Plains FBM Amp", &plainsParams.fbmAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Plains Ridge Freq", &plainsParams.ridgeFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Plains Ridge Amp", &plainsParams.ridgeAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Plains Voronoi Freq", &plainsParams.voroFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Plains Voronoi Amp", &plainsParams.voroAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Plains Morphed Freq", &plainsParams.morphedvoroFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Plains Morphed Amp", &plainsParams.morphedvoroAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Plains Sand Freq", &plainsParams.sandFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Plains Sand Amp", &plainsParams.sandAmp, 0.0f, 5.0f);
+
+    ImGui::Text("Mountains");
+    biomeUpdated |= ImGui::SliderFloat("Mountains FBM Freq", &mountainsParams.fbmFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Mountains FBM Amp", &mountainsParams.fbmAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Mountains Ridge Freq", &mountainsParams.ridgeFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Mountains Ridge Amp", &mountainsParams.ridgeAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Mountains Voronoi Freq", &mountainsParams.voroFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Mountains Voronoi Amp", &mountainsParams.voroAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Mountains Morphed Freq", &mountainsParams.morphedvoroFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Mountains Morphed Amp", &mountainsParams.morphedvoroAmp, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Mountains Sand Freq", &mountainsParams.sandFreq, 0.0f, 5.0f);
+    biomeUpdated |= ImGui::SliderFloat("Mountains Sand Amp", &mountainsParams.sandAmp, 0.0f, 5.0f);
+
+
+    if (biomeUpdated && autoUpdate) {
+        terrain.UpdateBiomeParams(dunesParams, plainsParams, mountainsParams);
     }
 
     ImGui::Spacing();
@@ -177,8 +386,39 @@ void cleanupImGui() {
     ImGui::DestroyContext();
 }
 
+glm::vec3 GetRayFromMouse(float mouseX, float mouseY, int screenWidth, int screenHeight, const glm::mat4& projection, const glm::mat4& view) {
+    float ndcX = (2.0f * mouseX) / screenWidth - 1.0f;
+    float ndcY = 1.0f - (2.0f * mouseY) / screenHeight; // Otočit osu Y
+    glm::vec4 rayClip = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
 
+    glm::vec4 rayEye = glm::inverse(projection) * rayClip;
+    rayEye = glm::vec4(rayEye.x, rayEye.y, rayEye.z, 0.0f); // Nastavit směr do dálky
 
+    glm::vec3 rayWorld = glm::vec3(glm::inverse(view) * rayEye);
+    rayWorld = glm::normalize(rayWorld); // Normalizovat směr
+
+    return rayWorld;
+}
+
+bool RayIntersectsTerrain(glm::vec3 rayOrigin, glm::vec3 rayDir, Terrain& terrain, glm::vec3& hitPoint) {
+    float stepSize = 0.01f; // Jak velké kroky děláme
+    float maxDistance = 500.0f; // Jak daleko testujeme
+    glm::vec3 currentPos = rayOrigin;
+
+    // Aktualizace výšek z SSBO, pokud jsou potřeba
+    terrain.ReadHeightsFromSSBO();
+
+    for (float t = 0.0f; t < maxDistance; t += stepSize) {
+        currentPos = rayOrigin + rayDir * t;
+        float terrainHeight = terrain.GetHeightAt(currentPos.x, currentPos.z);
+
+        if (currentPos.y <= terrainHeight) {
+            hitPoint = currentPos;
+            return true; // Paprsek narazil na terén
+        }
+    }
+    return false; // Žádný průsečík
+}
 
 int main() {
     // Inicializace GLFW
@@ -191,6 +431,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
 
     // Vytvoření okna
     GLFWwindow* window = glfwCreateWindow(1600, 1200, "Procedural Terrain", nullptr, nullptr);
@@ -201,16 +442,15 @@ int main() {
     }
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetCursorPosCallback(window, mouseCallback);
+    glfwSetMouseButtonCallback(window, mouseButtonCallback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSwapInterval(1);
 
 
     // Načtení OpenGL funkcí pomocí GLAD
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cerr << "Failed to initialize GLAD" << std::endl;
-        return -1;
-    }
+    gladSetGLOnDemandLoader((GLADloadfunc)glfwGetProcAddress);
+    gl_debug_output_enable();
 
     // Povolení hloubkového testu
     glEnable(GL_DEPTH_TEST);
@@ -240,12 +480,15 @@ int main() {
 
     // Vytvoření terénu
     Terrain terrain(1000); // 1000x1000 mřížka
+    double mouseX, mouseY;
 
     while (!glfwWindowShouldClose(window)) {
         // Vyčištění obrazovky
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+
+        glfwGetCursorPos(window, &mouseX, &mouseY);
 
         processInput(window, deltaTime);
 
@@ -256,11 +499,22 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        renderGUI(terrain, terrainShader);
+        renderGUI(terrain, terrainShader, window, mouseX, mouseY);
 
         // Výpočet kamerových matic
         glm::mat4 view = camera.GetViewMatrix();
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 500.0f);
+        glm::vec3 rayDir = GetRayFromMouse((float)mouseX, (float)mouseY, 1600, 1200, projection, view);
+
+        glm::vec3 rayOrigin = camera.Position;
+        glm::vec3 hitPoint;
+
+        if (editMode != 0 && isEditingTerrain) {
+            glm::vec3 hitPoint;
+            if (RayIntersectsTerrain(camera.Position, rayDir, terrain, hitPoint)) {
+                terrain.ModifyTerrain(hitPoint, editMode);
+            }
+        }
 
         // Použití shaderu
         glm::mat4 model = glm::mat4(1.0f);
@@ -270,9 +524,13 @@ int main() {
         terrainShader.SetMat4("view", glm::value_ptr(view));
         terrainShader.SetMat4("projection", glm::value_ptr(projection));
 
-
         // Pozice kamery
         terrainShader.SetVec3("viewPos", camera.Position);
+
+        if (isEditingTerrain && RayIntersectsTerrain(camera.Position, rayDir, terrain, hitPoint)) {
+            terrainShader.SetVec3("editPosition", hitPoint);
+            terrainShader.SetFloat("editRadius", 5.0f);
+        }
 
         // Nastavení texturových jednotek pro shader
         glUniform1i(glGetUniformLocation(terrainShader.ID, "grassTexture"), 0);
@@ -292,42 +550,28 @@ int main() {
 
         // Aktivace textur před vykreslením
         glActiveTexture(GL_TEXTURE0);
-        glEnable(GL_TEXTURE_2D);
         grassTexture.Bind(0);
         glActiveTexture(GL_TEXTURE1);
-        glEnable(GL_TEXTURE_2D);
         grassNormalTexture.Bind(1);
         glActiveTexture(GL_TEXTURE2);
-        glEnable(GL_TEXTURE_2D);
         grassRoughnessTexture.Bind(2);
         glActiveTexture(GL_TEXTURE3);
-        glEnable(GL_TEXTURE_2D);
         grassAoTexture.Bind(3);
-
         glActiveTexture(GL_TEXTURE4);
-        glEnable(GL_TEXTURE_2D);
         rockTexture.Bind(4);
         glActiveTexture(GL_TEXTURE5);
-        glEnable(GL_TEXTURE_2D);
         rockNormalTexture.Bind(5);
         glActiveTexture(GL_TEXTURE6);
-        glEnable(GL_TEXTURE_2D);
         rockRoughnessTexture.Bind(6);
         glActiveTexture(GL_TEXTURE7);
-        glEnable(GL_TEXTURE_2D);
         rockAoTexture.Bind(7);
-
         glActiveTexture(GL_TEXTURE8);
-        glEnable(GL_TEXTURE_2D);
         snowTexture.Bind(8);
         glActiveTexture(GL_TEXTURE9);
-        glEnable(GL_TEXTURE_2D);
         snowNormalTexture.Bind(9);
         glActiveTexture(GL_TEXTURE10);
-        glEnable(GL_TEXTURE_2D);
         snowRoughnessTexture.Bind(10);
         glActiveTexture(GL_TEXTURE11);
-        glEnable(GL_TEXTURE_2D);
         snowAoTexture.Bind(11);
 
 
@@ -348,3 +592,5 @@ int main() {
     glfwTerminate();
     return 0;
 }
+#define GLAD_GL_IMPLEMENTATION
+#include <glad/glad.h>

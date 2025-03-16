@@ -11,11 +11,25 @@ layout (std430, binding = 1) buffer NormalBuffer {
 };
 
 struct Params {
-    float low_freq;
-    float high_freq;
-    float height_scale;
-    float roughness;
+    float fbmFreq;
+    float fbmAmp;
+    float ridgeFreq;
+    float ridgeAmp;
+    float voroFreq;
+    float voroAmp;
+    float morphedvoroFreq;
+    float morphedvoroAmp;
+    float sandFreq;
+    float sandAmp;
 };
+
+layout (std140, binding = 2) uniform UniformBuffer {
+    Params Dunes;
+    Params Plains;
+    Params Mountains;
+}u;
+
+
 
 
 // Uniformy pro řízení terénu
@@ -74,11 +88,7 @@ int hash(int x, int y) {
 }
 
 uint idk_hash(vec2 pos) {
-    uint x = uint(pos.x * 123.456);
-    uint y = uint(pos.y * 654.321);
-    x = (x >> 16) ^ x;
-    y = (y >> 16) ^ y;
-    return (x * 374761393u + y * 668265263u) % 100000;
+    return uint(fract(sin(dot(pos, vec2(12.9898, 78.233))) * 43758.5453) * 1000000);
 }
 
 // Výpočet Perlinova šumu
@@ -229,7 +239,7 @@ float voronoiNoise(vec2 pos, float edgeSharpness, float baseScale) {
 }
 
 void voronoiMap(in vec2 pos, float edgeSharpness, float scale, out vec3 first_min, out vec3 second_min, out vec3 third_min, out vec3 weights) {
-    pos /= scale; // Normalizace pozice podle scale
+    pos /= scale;
     vec2 pixel_cell = floor(pos);
     vec3 poses[9];
 
@@ -320,77 +330,57 @@ float moreNoise(vec2 pos) {
     return mix(voro, morphedVoro, 0.8) + ridges;
 }
 
+float combinedNoise(vec2 pos, Params params) {
+    float combined = 0.0;
 
-/*Params getBiomeParams(vec2 pos, float edgeSharpness, float scale, uint biomeCount) {
-    vec3 cells[3];
-    vec3 weights;
+    combined += fbm(pos * params.fbmFreq) * params.fbmAmp;
 
-    // Získání Voronoi buněk
-    voronoiMap(pos, edgeSharpness, scale, cells[0], cells[1], cells[2], weights);
+    // Voronoi základní noise
+    combined += voronoiNoise(pos * params.voroFreq, edgeSharpness * 0.4, scale * 1.5) * params.voroAmp * 0.8;
+    
+    // Warping
+    vec2 warp = vec2(fbm(pos), fbm(pos + vec2(4.3, 2.1))) * 2.0;
 
-    Params params[3];
+    // Distortion
+    float distortion = fbm(pos * 1.0) * 0.5;
 
-    for (int i = 0; i < 3; i++) {
-        uint biom_hash = idk_hash(cells[i].xy);
-        uint biom_id = biom_hash % biomeCount;  // Výběr ID biomu
+    // Morphed Voronoi noise
+    combined += voronoiNoise(pos * params.morphedvoroFreq + warp + distortion, edgeSharpness * 0.6, scale * 1.2) * params.morphedvoroAmp * 0.2;
 
-        if (biom_id == 0) {  // Planiny
-            params[i].low_freq = 0.7;
-            params[i].high_freq = 0.1;
-            params[i].height_scale = 5.0;
-            params[i].roughness = 0.3;
-        } 
-        else if (biom_id == 1) {  // Poušť
-            params[i].low_freq = 0.5;
-            params[i].high_freq = 0.2;
-            params[i].height_scale = 3.0;
-            params[i].roughness = 0.1;
-        } 
-        else if (biom_id == 2) {  // Hory
-            params[i].low_freq = 1.0;
-            params[i].high_freq = 0.3;
-            params[i].height_scale = 10.0;
-            params[i].roughness = 0.7;
-        }
-    }
+    // Ridge noise
+    combined += ridgeNoise(pos * params.ridgeFreq, scale * 2) * params.ridgeAmp;
 
-    // Interpolace biome parametrů podle Voronoi vah
-    Params blend_params;
-    blend_params.low_freq = params[0].low_freq * weights.x + params[1].low_freq * weights.y + params[2].low_freq * weights.z;
-    blend_params.high_freq = params[0].high_freq * weights.x + params[1].high_freq * weights.y + params[2].high_freq * weights.z;
-    blend_params.height_scale = params[0].height_scale * weights.x + params[1].height_scale * weights.y + params[2].height_scale * weights.z;
-    blend_params.roughness = params[0].roughness * weights.x + params[1].roughness * weights.y + params[2].roughness * weights.z;
+    // Sand dunes
+    combined += sandDunes(pos * params.sandFreq, edgeSharpness, scale) * params.sandAmp;
 
-    return blend_params;
+    return combined;
 }
-*/
-float getHeight(float x, float z) {
-    vec2 pos = vec2(x, z) * 0.1;
 
-    // Získání nejbližších Voronoi buněk a jejich vah
+float getHeight(float x, float y) {
+    vec2 pos = vec2(x, y) * 0.1;
+
     vec3 cells[3];
     vec3 weights;
     voronoiMap(pos, edgeSharpness, scale, cells[0], cells[1], cells[2], weights);
 
-    // Výška pro každý biom podle Voronoi buněk
     float heights[3];
 
     for (int i = 0; i < 3; i++) {
-        uint biom_hash = idk_hash(cells[i].xy);
-        uint biom_id = biom_hash % biomeCount;  // Výběr biomu
+        uint biomeHash = idk_hash(cells[i].xy);
+        uint biomeID = biomeHash % biomeCount; // Výběr biomu
 
-        if (biom_id == 0) {  // Planiny
-            heights[i] = plainsTerrain(pos);
-        } 
-        else if (biom_id == 1) {  // Poušť
-            heights[i] = sandDunes(pos * 2.0, edgeSharpness, scale) / 2.0;
-        } 
-        else if (biom_id == 2) {  // Hory
-            heights[i] = moreNoise(pos * 2.0) * 2.0;
+        Params biomeParams;
+        if (biomeID == 0) {
+            biomeParams = u.Dunes;
+        } else if (biomeID == 1) {
+            biomeParams = u.Plains;
+        } else {
+            biomeParams = u.Mountains;
         }
+
+        heights[i] = combinedNoise(pos, biomeParams);
     }
 
-    // Míchání terénů podle Voronoi vah
     float finalHeight = heights[0] * weights.x +
                         heights[1] * weights.y +
                         heights[2] * weights.z;
@@ -399,7 +389,6 @@ float getHeight(float x, float z) {
 }
 
 
-   
 
 
 // Výpočet normály kombinací gradientového přístupu a detailního šumu

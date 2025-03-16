@@ -25,15 +25,15 @@ public:
     float Pitch;
     float MovementSpeed;
     float MouseSensitivity;
+    float lastX, lastY;
 
     Camera(glm::vec3 position);
     glm::mat4 GetViewMatrix();
     void ProcessKeyboard(Camera_Movement direction, float deltaTime, bool boost);
-    void ProcessMouseMovement(float xpos, float ypos);
+    void ProcessMouseMovement(float xpos, float ypos, bool isEditing);
 
 private:
     bool firstMouse;
-    float lastX, lastY;
     void updateCameraVectors();
 };
 

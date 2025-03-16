@@ -32,7 +32,7 @@ void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime, bool bo
 }
 
 
-void Camera::ProcessMouseMovement(float xpos, float ypos) {
+void Camera::ProcessMouseMovement(float xpos, float ypos, bool isEditing) {
     if (firstMouse) {
         lastX = xpos;
         lastY = ypos;
@@ -44,8 +44,9 @@ void Camera::ProcessMouseMovement(float xpos, float ypos) {
     lastX = xpos;
     lastY = ypos;
 
-    xoffset *= MouseSensitivity;
-    yoffset *= MouseSensitivity;
+    float sensitivity = isEditing ? MouseSensitivity * 2.5f : MouseSensitivity;
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
 
     Yaw += xoffset;
     Pitch += yoffset;
