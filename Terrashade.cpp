@@ -11,6 +11,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "Skybox.h"
 
 
 const char* gl_translate_error(GLenum code)
@@ -125,7 +126,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 }
 
 // Inicializace kamery na výchozí pozici
-Camera camera(glm::vec3(0.0f, 5.0f, 10.0f)); // Kamera nad terénem
+Camera camera(glm::vec3(0.0f, 10.0f, 20.0f)); // Kamera nad terénem
 
 float deltaTime = 0.0f;  // Čas mezi aktuálním a posledním snímkem
 float lastFrame = 0.0f;
@@ -474,13 +475,13 @@ int main() {
     Texture snowAoTexture("textures/snow/ao.jpg");
 
     initImGui(window);
-    bool autoUpdate = false;
-    float terrainScale = 10.0f;
-    float edgeSharpness = 20.0f;
 
     // Vytvoření terénu
     Terrain terrain(1000); // 1000x1000 mřížka
     double mouseX, mouseY;
+
+    Skybox skybox;
+    Shader skyboxShader("Shaders/skybox.vert", "Shaders/skybox.frag");
 
     while (!glfwWindowShouldClose(window)) {
         // Vyčištění obrazovky
@@ -577,6 +578,24 @@ int main() {
 
         // Vykreslení terénu
         terrain.Draw();
+
+
+        // Vykreslení skyboxu
+        glDepthFunc(GL_LEQUAL);
+        skyboxShader.Use();
+
+        view = glm::mat4(glm::mat3(camera.GetViewMatrix())); // Odstranění posunu kamery
+        projection = glm::perspective(glm::radians(45.0f), 1600.0f / 1200.0f, 0.1f, 500.0f);
+
+        skyboxShader.SetMat4("view", glm::value_ptr(view));
+        skyboxShader.SetMat4("projection", glm::value_ptr(projection));
+        glm::mat4 skyboxModel = glm::mat4(1.0f);
+        skyboxModel = glm::translate(skyboxModel, glm::vec3(0.0f, -100.0f, 0.0f)); // Posun dolů o 50 jednotek
+        skyboxShader.SetMat4("model", glm::value_ptr(skyboxModel));
+
+        skybox.Draw(skyboxShader);
+        glDepthFunc(GL_LESS);
+
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
