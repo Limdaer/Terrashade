@@ -10,6 +10,11 @@ layout (std430, binding = 1) buffer NormalBuffer {
     vec4 normals[];
 };
 
+layout (std430, binding = 3) buffer BiomeIDBuffer {
+    uint biomeIDs[];
+};
+
+
 struct Params {
     float fbmFreq;
     float fbmAmp;
@@ -21,13 +26,18 @@ struct Params {
     float morphedvoroAmp;
     float sandFreq;
     float sandAmp;
+    int enabled;
+    int padding1, padding2, padding3;
 };
 
 layout (std140, binding = 2) uniform UniformBuffer {
     Params Dunes;
     Params Plains;
     Params Mountains;
-}u;
+    Params NewBiome;
+} u;
+
+
 
 
 
@@ -40,7 +50,6 @@ uniform float lacunarity;  // Jak moc se zvyšuje frekvence s další hladinou
 uniform float heightScale;   
 uniform float edgeSharpness; //Voronoi
 uniform float scale;
-uniform uint biomeCount;
 /*uniform float perlinWeight = 0.0;
 uniform float voronoiWeight = 1.0;
 uniform float simplexWeight = 0.0;
@@ -356,7 +365,7 @@ float combinedNoise(vec2 pos, Params params) {
     return combined;
 }
 
-float getHeight(float x, float y) {
+float getHeight(float x, float y, out uint biomeCount) {
     vec2 pos = vec2(x, y) * 0.1;
 
     vec3 cells[3];
@@ -365,20 +374,29 @@ float getHeight(float x, float y) {
 
     float heights[3];
 
+    Params activeBiomes[4]; // Maximálně 4 biomy
+    biomeCount = 0;
+
+    if (u.Dunes.enabled == 1) {
+        activeBiomes[biomeCount++] = u.Dunes;
+    }
+    if (u.Plains.enabled == 1) {
+        activeBiomes[biomeCount++] = u.Plains;
+    }
+    if (u.Mountains.enabled == 1) {
+        activeBiomes[biomeCount++] = u.Mountains;
+    }
+
+    if (biomeCount == 0) {
+        activeBiomes[0] = u.Dunes;
+        biomeCount = 1;
+    }
+
     for (int i = 0; i < 3; i++) {
         uint biomeHash = idk_hash(cells[i].xy);
-        uint biomeID = biomeHash % biomeCount; // Výběr biomu
+        uint biomeID = biomeHash % biomeCount; // Použití biomeCount pro výběr biomu
 
-        Params biomeParams;
-        if (biomeID == 0) {
-            biomeParams = u.Dunes;
-        } else if (biomeID == 1) {
-            biomeParams = u.Plains;
-        } else {
-            biomeParams = u.Mountains;
-        }
-
-        heights[i] = combinedNoise(pos, biomeParams);
+        heights[i] = combinedNoise(pos, activeBiomes[biomeID]);
     }
 
     float finalHeight = heights[0] * weights.x +
@@ -388,18 +406,15 @@ float getHeight(float x, float y) {
     return finalHeight * heightScale;
 }
 
-
-
-
 // Výpočet normály kombinací gradientového přístupu a detailního šumu
 vec3 computeNormal(float x, float z) {
     float offset = 0.1 * scale; // Posun pro vzorkování sousedních bodů
-
+    uint biomeCount = 0;
     // Výška v sousedních bodech
-    float hL = getHeight(x - offset, z);
-    float hR = getHeight(x + offset, z);
-    float hD = getHeight(x, z - offset);
-    float hU = getHeight(x, z + offset);
+    float hL = getHeight(x - offset, z, biomeCount);
+    float hR = getHeight(x + offset, z, biomeCount);
+    float hD = getHeight(x, z - offset, biomeCount);
+    float hU = getHeight(x, z + offset, biomeCount);
 
     // Výpočet základní normály pomocí křížového součinu
     return normalize(vec3(hL - hR, 1.0, hD - hU));
@@ -410,13 +425,16 @@ void main() {
     uint y = gl_GlobalInvocationID.y;
 
     if (x >= gridSize || y >= gridSize) return;
-
+    uint biomeCount = 0;
     uint index = y * gridSize + x;
-
     float worldX = float(x) - float(gridSize) / 2.0;
     float worldZ = float(y) - float(gridSize) / 2.0;
-    float worldY = getHeight(worldX, worldZ);
+    float worldY = getHeight(worldX, worldZ, biomeCount);
 
     positions[index] = vec4(worldX, worldY, worldZ, 1.0);
     normals[index] = vec4(computeNormal(worldX, worldZ), 0.0);
+
+    uint biomeHash = idk_hash(vec2(worldX, worldZ));
+    uint biomeID = biomeHash % biomeCount;
+    biomeIDs[index] = biomeID;
 }

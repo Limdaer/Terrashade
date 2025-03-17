@@ -128,19 +128,18 @@ void Terrain::ComputeNormals() {
     glUseProgram(0);
 }
 
-void Terrain::UpdateTerrain(float scale, float edgeSharpness, int biomeCount, float heightScale, int octaves, float persistence, float lacunarity) {
+void Terrain::UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity) {
     computeShader.Use();  // Aktivace compute shaderu
-    
+
     computeShader.SetFloat("scale", scale);
     computeShader.SetFloat("edgeSharpness", edgeSharpness);
-    computeShader.SetUInt("biomeCount", biomeCount);
     computeShader.SetFloat("heightScale", heightScale);
     computeShader.SetUInt("octaves", octaves);
     computeShader.SetFloat("persistence", persistence);
     computeShader.SetFloat("lacunarity", lacunarity);
 
     glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1);
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);  
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
 void Terrain::ReadHeightsFromSSBO() {
@@ -208,17 +207,19 @@ void Terrain::UpdateBiomeParams(const Params& dunes, const Params& plains, const
     computeShader.Use();
 
     uniforms.Dunes = dunes;
+
     uniforms.Plains = plains;
+
     uniforms.Mountains = mountains;
 
     glBindBuffer(GL_UNIFORM_BUFFER, uniformBuffer);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(uniforms), &uniforms);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-    // Znovu spustíme výpočet terénu s aktualizovanými parametry
     glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
+
 
 
 

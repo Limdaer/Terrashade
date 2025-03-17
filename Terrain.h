@@ -17,7 +17,10 @@ struct alignas(16) Params {
     float morphedvoroAmp;
     float sandFreq;
     float sandAmp;
+    int enabled;
+    int padding1, padding2, padding3;
 };
+
 
 struct Uniforms {
     Params Dunes;
@@ -33,7 +36,7 @@ public:
     void Draw();
     void ComputeTerrain();
     void ComputeNormals();
-    void UpdateTerrain(float scale, float edgeSharpness, int biomeCount, float heightScale, int octaves, float persistence, float lacunarity);
+    void UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity);
     void ReadHeightsFromSSBO();
     float GetHeightAt(float worldX, float worldZ);
     void ModifyTerrain(glm::vec3 hitPoint, int mode);

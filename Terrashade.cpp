@@ -244,53 +244,50 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     static bool autoUpdate = false;
     static float terrainScale = 10.0f;
     static float edgeSharpness = 20.0f;
-    static int biomeCount = 3;
     static float heightScale = 10.0f;
     static int octaves = 8;
     static float persistence = 0.3f;
     static float lacunarity = 2.0f;
-    static Params dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5 };
-    static Params plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0 };
-    static Params mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0 };
+    static Params dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5, 1 };
+    static Params plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
+    static Params mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0, 1 };
 
     ImGui::Checkbox("Auto Update", &autoUpdate);
 
     bool updated = false;
     updated |= ImGui::SliderFloat("Scale", &terrainScale, 1.0f, 50.0f);
     updated |= ImGui::SliderFloat("Edge Sharpness", &edgeSharpness, 1.0f, 50.0f);
-    updated |= ImGui::SliderInt("Biome Count", &biomeCount, 1, 7);
     updated |= ImGui::SliderFloat("Height Scale", &heightScale, 0.0f, 200.0f);
     updated |= ImGui::SliderInt("Octaves", &octaves, 1, 10);
     updated |= ImGui::SliderFloat("Persistence", &persistence, 0.1f, 1.0f);
     updated |= ImGui::SliderFloat("Lacunarity", &lacunarity, 1.0f, 4.0f);
 
     if (StartGUI) {
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale, octaves, persistence, lacunarity);
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity);
     }
 
     if (updated && autoUpdate) {
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale, octaves, persistence, lacunarity);
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity);
     }
 
     if (!autoUpdate && ImGui::Button("Regenerate Terrain")) {
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale, octaves, persistence, lacunarity);
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity);
     }
 
-    if(!autoUpdate)
+    if (!autoUpdate)
         ImGui::SameLine();
 
     if (ImGui::Button("Reset Terrain")) {
         terrainScale = 10.0f;
         edgeSharpness = 20.0f;
-        biomeCount = 3;
         heightScale = 10.0f;
         octaves = 8;
         persistence = 0.3f;
         lacunarity = 2.0f;
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, biomeCount, heightScale, octaves, persistence, lacunarity);
-        dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5 };
-        plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0 };
-        mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0 };
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity);
+        dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5 , 1 };
+        plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
+        mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0, 1 };
         terrain.UpdateBiomeParams(dunesParams, plainsParams, mountainsParams);
 
     }
@@ -301,7 +298,11 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
 
     bool biomeUpdated = false;
 
-    ImGui::Text("Dunes");
+    bool enabledDunes = dunesParams.enabled;
+    if (ImGui::Checkbox("Enable Dunes", &enabledDunes)) {
+        dunesParams.enabled = enabledDunes ? 1 : 0;
+        biomeUpdated = true;
+    }
     biomeUpdated |= ImGui::SliderFloat("Dunes FBM Freq", &dunesParams.fbmFreq, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Dunes FBM Amp", &dunesParams.fbmAmp, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Dunes Ridge Freq", &dunesParams.ridgeFreq, 0.0f, 5.0f);
@@ -313,7 +314,11 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     biomeUpdated |= ImGui::SliderFloat("Dunes Sand Freq", &dunesParams.sandFreq, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Dunes Sand Amp", &dunesParams.sandAmp, 0.0f, 5.0f);
 
-    ImGui::Text("Plains");
+    bool enabledPlains = plainsParams.enabled;
+    if (ImGui::Checkbox("Enable Plains", &enabledPlains)) {
+        plainsParams.enabled = enabledPlains ? 1 : 0;
+        biomeUpdated = true;
+    }
     biomeUpdated |= ImGui::SliderFloat("Plains FBM Freq", &plainsParams.fbmFreq, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Plains FBM Amp", &plainsParams.fbmAmp, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Plains Ridge Freq", &plainsParams.ridgeFreq, 0.0f, 5.0f);
@@ -325,7 +330,11 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     biomeUpdated |= ImGui::SliderFloat("Plains Sand Freq", &plainsParams.sandFreq, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Plains Sand Amp", &plainsParams.sandAmp, 0.0f, 5.0f);
 
-    ImGui::Text("Mountains");
+    bool enabledMountains = mountainsParams.enabled;
+    if (ImGui::Checkbox("Enable Mountains", &enabledMountains)) {
+        mountainsParams.enabled = enabledMountains ? 1 : 0;
+        biomeUpdated = true;
+    }
     biomeUpdated |= ImGui::SliderFloat("Mountains FBM Freq", &mountainsParams.fbmFreq, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Mountains FBM Amp", &mountainsParams.fbmAmp, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Mountains Ridge Freq", &mountainsParams.ridgeFreq, 0.0f, 5.0f);
@@ -337,8 +346,7 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     biomeUpdated |= ImGui::SliderFloat("Mountains Sand Freq", &mountainsParams.sandFreq, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Mountains Sand Amp", &mountainsParams.sandAmp, 0.0f, 5.0f);
 
-
-    if (biomeUpdated && autoUpdate) {
+    if ((biomeUpdated && autoUpdate) || StartGUI) {
         terrain.UpdateBiomeParams(dunesParams, plainsParams, mountainsParams);
     }
 
