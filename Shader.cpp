@@ -106,30 +106,30 @@ void Shader::CheckCompileErrors(unsigned int shader, std::string type) {
 }
 
 // Nastaví matici 4x4 v shaderu
-void Shader::SetMat4(const std::string& name, const float* value) {
-    glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, value);
+void Shader::SetMat4(const char* name, const float* value) {
+    glUniformMatrix4fv(glGetUniformLocation(ID, name), 1, GL_FALSE, value);
 }
 
 // Nastaví uniformní proměnnou vec3 (ruční zadání tří složek)
-void Shader::SetVec3(const std::string& name, float x, float y, float z) {
-    glUniform3f(glGetUniformLocation(ID, name.c_str()), x, y, z);
+void Shader::SetVec3(const char* name, float x, float y, float z) {
+    glUniform3f(glGetUniformLocation(ID, name), x, y, z);
 }
 
 // Nastaví uniformní proměnnou vec3 (přes glm::vec3)
-void Shader::SetVec3(const std::string& name, const glm::vec3& value) {
-    glUniform3fv(glGetUniformLocation(ID, name.c_str()), 1, glm::value_ptr(value));
+void Shader::SetVec3(const char* name, const glm::vec3& value) {
+    glUniform3fv(glGetUniformLocation(ID, name), 1, glm::value_ptr(value));
 }
 
 // Nastaví uniformní proměnnou float
-void Shader::SetFloat(const std::string& name, float value) {
-    glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
+void Shader::SetFloat(const char* name, float value) {
+    glUniform1f(glGetUniformLocation(ID, name), value);
 }
 
 // Nastaví uniformní proměnnou int
-void Shader::SetInt(const std::string& name, int value) {
-    glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
+void Shader::SetInt(const char* name, int value) {
+    glUniform1f(glGetUniformLocation(ID, name), value);
 }
 
-void Shader::SetUInt(const std::string& name, unsigned int value) {
-    glUniform1ui(glGetUniformLocation(ID, name.c_str()), value);
+void Shader::SetUInt(const char* name, unsigned int value) {
+    glUniform1ui(glGetUniformLocation(ID, name), value);
 }

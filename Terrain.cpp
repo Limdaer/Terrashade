@@ -11,35 +11,26 @@ Terrain::~Terrain() {
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &EBO);
-    glDeleteBuffers(1, &normalsSSBO);
-    glDeleteBuffers(1, &positionsSSBO);
+    glDeleteBuffers(1, &resultsSSBO);
+
 }
 
 void Terrain::GenerateTerrain() {
-    glGenVertexArrays(1, &VAO);
-    glBindVertexArray(VAO);
 
     // SSBO pro pozice (x, y, z)
-    glGenBuffers(1, &positionsSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, positionsSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, gridSize * gridSize * sizeof(glm::vec4), NULL, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, positionsSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-    // SSBO pro normály
-    glGenBuffers(1, &normalsSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, normalsSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, gridSize * gridSize * sizeof(glm::vec4), NULL, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, normalsSSBO);
+    glGenBuffers(1, &resultsSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, resultsSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, gridSize * gridSize * sizeof(Output), NULL, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
     // Uniformbuffer
     glGenBuffers(1, &uniformBuffer);
     glBindBuffer(GL_UNIFORM_BUFFER, uniformBuffer);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(Uniforms), NULL, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, 1, uniformBuffer);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
     // EBO pro indexy trojúhelníků
     std::vector<unsigned int> indices;
     for (int row = 0; row < gridSize - 1; row++) {
@@ -71,18 +62,9 @@ void Terrain::Draw() {
     glBindVertexArray(VAO);
 
     // Připojení SSBO jako zdroje dat pro VAO
-    glBindBuffer(GL_ARRAY_BUFFER, positionsSSBO);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, normalsSSBO);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
-    glEnableVertexAttribArray(1);
-
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER,0 ,resultsSSBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glDrawElements(GL_TRIANGLES, gridSize * gridSize * 6, GL_UNSIGNED_INT, 0);
-
-    glBindVertexArray(0);
+    glDrawElements(GL_TRIANGLES, (gridSize - 1) * (gridSize - 1) * 6,GL_UNSIGNED_INT, 0);
 }
 
 
@@ -108,9 +90,9 @@ void Terrain::ComputeTerrain() {
 
     glNamedBufferSubData(uniformBuffer, 0, sizeof(uniforms), &uniforms);
     glUniform1i(glGetUniformLocation(computeShader.ID, "gridSize"), gridSize);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, positionsSSBO);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, normalsSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, resultsSSBO);
     glBindBufferBase(GL_UNIFORM_BUFFER, 2, uniformBuffer);
+
     glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1); // Vypocty
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); // Zápis do bufferu před čtením
 
@@ -149,7 +131,7 @@ void Terrain::ReadHeightsFromSSBO() {
     std::vector<glm::vec4> tempPositions(gridSize * gridSize); // Dočasný buffer pro SSBO
     heights.resize(gridSize * gridSize); // Zajistíme správnou velikost vektoru heights
 
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, positionsSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, resultsSSBO);
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, tempPositions.size() * sizeof(glm::vec4), tempPositions.data());
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
@@ -195,7 +177,7 @@ void Terrain::ModifyTerrain(glm::vec3 hitPoint, int mode) {
                 heights[index] += strength * gaussian; // Aplikace změny
 
                 // Aktualizace SSBO
-                glBindBuffer(GL_SHADER_STORAGE_BUFFER, positionsSSBO);
+                glBindBuffer(GL_SHADER_STORAGE_BUFFER, resultsSSBO);
                 glBufferSubData(GL_SHADER_STORAGE_BUFFER, index * sizeof(glm::vec4) + sizeof(float), sizeof(float), &heights[index]);
                 glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
             }

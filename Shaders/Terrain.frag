@@ -5,6 +5,10 @@ out vec4 FragColor;
 in vec3 FragPos;  
 in vec3 Normal;  
 in vec2 TexCoords; // Přijaté UV souřadnice
+flat in uint biomeID1;
+flat in uint biomeID2;
+flat in uint biomeID3;
+in vec3 Weights;
 
 // Uniformy pro osvětlení
 uniform vec3 lightDir; // Směr světla
@@ -23,14 +27,14 @@ uniform vec3 viewPos;
 
 // Výška pro mixování textur
 uniform float grassHeight = 10.0;
-uniform float rockHeight = 25.0;
-uniform float snowHeight = 40.0;
+uniform float rockHeight = 15.0;
 uniform float blendRange = 5.0;
 
 // Textura terénu
 uniform sampler2D grassTexture, grassNormal, grassRough, grassAo;
 uniform sampler2D rockTexture, rockNormal, rockRough, rockAo;
 uniform sampler2D snowTexture, snowNormal, snowRough, snowAo;
+uniform sampler2D sandTexture, sandNormal, sandRough, sandAo;
 
 
 vec3 CalculateLighting(
@@ -69,18 +73,34 @@ vec3 GetTextureByHeight() {
     vec3 rockColor = CalculateLighting(rockTexture, rockNormal, rockRough, rockAo);
     vec3 snowColor = CalculateLighting(snowTexture, snowNormal, snowRough, snowAo);
 
-    // Výpočet míchání textur pomocí smoothstep
+    // Výpočet blendingu mezi texturami pomocí smoothstep
     float grassBlend = 1.0 - smoothstep(grassHeight, grassHeight + blendRange, height);
     float rockBlend = smoothstep(grassHeight, grassHeight + blendRange, height) * (1.0 - smoothstep(rockHeight, rockHeight + blendRange, height));
     float snowBlend = smoothstep(rockHeight, rockHeight + blendRange, height);
 
-    // Lineární interpolace mezi barvami
+    // Lineární interpolace mezi texturami
     return grassColor * grassBlend + rockColor * rockBlend + snowColor * snowBlend;
+}
+
+vec3 GetBiomeTexture(uint biomeID) {
+    if (biomeID == 0) {
+        return CalculateLighting(sandTexture, sandNormal, sandRough, sandAo);
+    }
+    else if (biomeID == 1) {
+        return CalculateLighting(grassTexture, grassNormal, grassRough, grassAo);
+    }
+    else if (biomeID == 2) {
+        return GetTextureByHeight();
+    }
+    return vec3(1.0, 0.0, 1.0);
 }
 
 
 void main() {
-    vec3 finalColor = GetTextureByHeight();
+    vec3 col1 = GetBiomeTexture(biomeID1);
+    vec3 col2 = GetBiomeTexture(biomeID2);
+    vec3 col3 = GetBiomeTexture(biomeID3);
+    vec3 finalColor = col1 * Weights.x + col2 * Weights.y + col3 * Weights.z;
 
     FragColor = vec4(finalColor, 1.0);
 }

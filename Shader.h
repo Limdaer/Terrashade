@@ -18,13 +18,13 @@ public:
     void Use();
 
     // Nastaví matici 4x4 v shaderu (např. model, view, projection matice)
-    void SetMat4(const std::string& name, const float* value);
+    void SetMat4(const char* name, const float* value);
     //nastaví i jiné proměnné
-    void SetVec3(const std::string& name, float x, float y, float z);
-    void SetVec3(const std::string& name, const glm::vec3& value);
-    void SetFloat(const std::string& name, float value);
-    void SetInt(const std::string& name, int value);
-    void SetUInt(const std::string& name, unsigned int value);
+    void SetVec3(const char* name, float x, float y, float z);
+    void SetVec3(const char* name, const glm::vec3& value);
+    void SetFloat(const char* name, float value);
+    void SetInt(const char* name, int value);
+    void SetUInt(const char* name, unsigned int value);
 
 
 private:

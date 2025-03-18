@@ -482,6 +482,11 @@ int main() {
     Texture snowRoughnessTexture("textures/snow/rough.jpg");
     Texture snowAoTexture("textures/snow/ao.jpg");
 
+    Texture sandTexture("textures/sand/text.jpg");
+    Texture sandNormalTexture("textures/sand/normal.jpg");
+    Texture sandRoughnessTexture("textures/sand/rough.jpg");
+    Texture sandAoTexture("textures/sand/ao.jpg");
+
     initImGui(window);
 
     // Vytvoření terénu
@@ -512,7 +517,7 @@ int main() {
 
         // Výpočet kamerových matic
         glm::mat4 view = camera.GetViewMatrix();
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 500.0f);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10000.0f);
         glm::vec3 rayDir = GetRayFromMouse((float)mouseX, (float)mouseY, 1600, 1200, projection, view);
 
         glm::vec3 rayOrigin = camera.Position;
@@ -532,6 +537,7 @@ int main() {
         terrainShader.SetMat4("model", glm::value_ptr(model));
         terrainShader.SetMat4("view", glm::value_ptr(view));
         terrainShader.SetMat4("projection", glm::value_ptr(projection));
+        terrainShader.SetUInt("gridSize", terrain.gridSize);
 
         // Pozice kamery
         terrainShader.SetVec3("viewPos", camera.Position);
@@ -556,6 +562,11 @@ int main() {
         glUniform1i(glGetUniformLocation(terrainShader.ID, "snowNormal"), 9);
         glUniform1i(glGetUniformLocation(terrainShader.ID, "snowRough"), 10);
         glUniform1i(glGetUniformLocation(terrainShader.ID, "snowAo"), 11);
+
+        glUniform1i(glGetUniformLocation(terrainShader.ID, "sandTexture"), 12);
+        glUniform1i(glGetUniformLocation(terrainShader.ID, "sandNormal"), 13);
+        glUniform1i(glGetUniformLocation(terrainShader.ID, "sandRough"), 14);
+        glUniform1i(glGetUniformLocation(terrainShader.ID, "sandAo"), 15);
 
         // Aktivace textur před vykreslením
         glActiveTexture(GL_TEXTURE0);
@@ -582,6 +593,14 @@ int main() {
         snowRoughnessTexture.Bind(10);
         glActiveTexture(GL_TEXTURE11);
         snowAoTexture.Bind(11);
+        glActiveTexture(GL_TEXTURE12);
+        sandTexture.Bind(12);
+        glActiveTexture(GL_TEXTURE13);
+        sandNormalTexture.Bind(13);
+        glActiveTexture(GL_TEXTURE14);
+        sandRoughnessTexture.Bind(14);
+        glActiveTexture(GL_TEXTURE15);
+        sandAoTexture.Bind(15);
 
 
         // Vykreslení terénu

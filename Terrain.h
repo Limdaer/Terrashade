@@ -21,6 +21,13 @@ struct alignas(16) Params {
     int padding1, padding2, padding3;
 };
 
+struct alignas(16) Output {
+    glm::vec4 position;
+    glm::vec4 normal;
+    unsigned int biomeIDs[3];
+    float biomeWeight[3];
+};
+
 
 struct Uniforms {
     Params Dunes;
@@ -37,6 +44,7 @@ public:
     void ComputeTerrain();
     void ComputeNormals();
     void UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity);
+    void ReadBiomeIDsFromSSBO();
     void ReadHeightsFromSSBO();
     float GetHeightAt(float worldX, float worldZ);
     void ModifyTerrain(glm::vec3 hitPoint, int mode);
@@ -44,16 +52,17 @@ public:
     float radius = 10.0f;
     float strength = 2.0f;
     float sigma = radius / 3.0f;
+    int gridSize;
 
 private:
     void GenerateTerrain();
 
-    int gridSize;
     GLuint VAO, VBO, EBO;
-    GLuint positionsSSBO, normalsSSBO, uniformBuffer;
+    GLuint resultsSSBO, uniformBuffer;
     Shader computeShader;
     Uniforms uniforms = { 0 };
 
+    std::vector<uint32_t> biomeIDs;
     std::vector<float> heights;
 };
 

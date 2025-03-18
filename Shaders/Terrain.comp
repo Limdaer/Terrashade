@@ -2,17 +2,17 @@
 
 layout (local_size_x = 16, local_size_y = 16) in;
 
-layout (std430, binding = 0) buffer PositionBuffer {
-    vec4 positions[];
+struct Output{
+    vec4 position;
+    vec4 normal;
+    uint biomeIDs[3];
+    float biomeWeight[3];
 };
 
-layout (std430, binding = 1) buffer NormalBuffer {
-    vec4 normals[];
+layout (std430, binding = 0) buffer Buffer {
+    Output outputs[];
 };
 
-layout (std430, binding = 3) buffer BiomeIDBuffer {
-    uint biomeIDs[];
-};
 
 
 struct Params {
@@ -34,7 +34,6 @@ layout (std140, binding = 2) uniform UniformBuffer {
     Params Dunes;
     Params Plains;
     Params Mountains;
-    Params NewBiome;
 } u;
 
 
@@ -365,17 +364,17 @@ float combinedNoise(vec2 pos, Params params) {
     return combined;
 }
 
-float getHeight(float x, float y, out uint biomeCount) {
+float getHeight(float x, float y, out uint[3] biomeID, out vec3 weights) {
     vec2 pos = vec2(x, y) * 0.1;
 
     vec3 cells[3];
-    vec3 weights;
+    weights = vec3(0.0,0.0,0.0);
     voronoiMap(pos, edgeSharpness, scale, cells[0], cells[1], cells[2], weights);
 
     float heights[3];
 
     Params activeBiomes[4]; // Maximálně 4 biomy
-    biomeCount = 0;
+    uint biomeCount = 0;
 
     if (u.Dunes.enabled == 1) {
         activeBiomes[biomeCount++] = u.Dunes;
@@ -394,9 +393,9 @@ float getHeight(float x, float y, out uint biomeCount) {
 
     for (int i = 0; i < 3; i++) {
         uint biomeHash = idk_hash(cells[i].xy);
-        uint biomeID = biomeHash % biomeCount; // Použití biomeCount pro výběr biomu
-
-        heights[i] = combinedNoise(pos, activeBiomes[biomeID]);
+        uint selectedBiome = biomeHash % biomeCount;
+        heights[i] = combinedNoise(pos, activeBiomes[selectedBiome]);
+        biomeID[i] = selectedBiome;
     }
 
     float finalHeight = heights[0] * weights.x +
@@ -409,12 +408,13 @@ float getHeight(float x, float y, out uint biomeCount) {
 // Výpočet normály kombinací gradientového přístupu a detailního šumu
 vec3 computeNormal(float x, float z) {
     float offset = 0.1 * scale; // Posun pro vzorkování sousedních bodů
-    uint biomeCount = 0;
+    uint[3] biomeID;
+    vec3 nothing;
     // Výška v sousedních bodech
-    float hL = getHeight(x - offset, z, biomeCount);
-    float hR = getHeight(x + offset, z, biomeCount);
-    float hD = getHeight(x, z - offset, biomeCount);
-    float hU = getHeight(x, z + offset, biomeCount);
+    float hL = getHeight(x - offset, z, biomeID, nothing);
+    float hR = getHeight(x + offset, z, biomeID, nothing);
+    float hD = getHeight(x, z - offset, biomeID, nothing);
+    float hU = getHeight(x, z + offset, biomeID, nothing);
 
     // Výpočet základní normály pomocí křížového součinu
     return normalize(vec3(hL - hR, 1.0, hD - hU));
@@ -423,18 +423,23 @@ vec3 computeNormal(float x, float z) {
 void main() {
     uint x = gl_GlobalInvocationID.x;
     uint y = gl_GlobalInvocationID.y;
-
+    Output results;
     if (x >= gridSize || y >= gridSize) return;
-    uint biomeCount = 0;
+    uint[3] biomeID;
+    vec3 weights;
     uint index = y * gridSize + x;
     float worldX = float(x) - float(gridSize) / 2.0;
     float worldZ = float(y) - float(gridSize) / 2.0;
-    float worldY = getHeight(worldX, worldZ, biomeCount);
+    float worldY = getHeight(worldX, worldZ, biomeID, weights);
 
-    positions[index] = vec4(worldX, worldY, worldZ, 1.0);
-    normals[index] = vec4(computeNormal(worldX, worldZ), 0.0);
+    results.position = vec4(worldX, worldY, worldZ, 1.0);
+    results.normal = vec4(computeNormal(worldX, worldZ),0.0);
 
-    uint biomeHash = idk_hash(vec2(worldX, worldZ));
-    uint biomeID = biomeHash % biomeCount;
-    biomeIDs[index] = biomeID;
+    results.biomeIDs[0] = biomeID[0];
+    results.biomeIDs[1] = biomeID[1];
+    results.biomeIDs[2] = biomeID[2];
+    results.biomeWeight[0] = weights[0];
+    results.biomeWeight[1] = weights[1];
+    results.biomeWeight[2] = weights[2];
+    outputs[index] = results;
 }
