@@ -9,5 +9,6 @@ public:
     GLuint ID;
     Texture(const std::string& path);
     Texture(const std::vector<std::string>& faces);
+    Texture(const std::vector<std::string>& images, bool isArray);
     void Bind(GLuint unit = 0) const;
 };

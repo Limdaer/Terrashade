@@ -88,6 +88,12 @@ void Terrain::ComputeTerrain() {
             2.0, 2.0,  // morphed voronoi
             0.0, 0.0 }; // sand dunes
 
+    uniforms.Sea = Params{ 0.0, 0.0,  // fbm
+        0.0, 0.0,
+        0.0, 0.0,
+        0.0, 0.0,
+        0.0, 0.0 };
+
     glNamedBufferSubData(uniformBuffer, 0, sizeof(uniforms), &uniforms);
     glUniform1i(glGetUniformLocation(computeShader.ID, "gridSize"), gridSize);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, resultsSSBO);
@@ -185,7 +191,7 @@ void Terrain::ModifyTerrain(glm::vec3 hitPoint, int mode) {
     }
 }
 
-void Terrain::UpdateBiomeParams(const Params& dunes, const Params& plains, const Params& mountains) {
+void Terrain::UpdateBiomeParams(const Params& dunes, const Params& plains, const Params& mountains, const Params& sea) {
     computeShader.Use();
 
     uniforms.Dunes = dunes;
@@ -193,6 +199,8 @@ void Terrain::UpdateBiomeParams(const Params& dunes, const Params& plains, const
     uniforms.Plains = plains;
 
     uniforms.Mountains = mountains;
+
+    uniforms.Sea = sea;
 
     glBindBuffer(GL_UNIFORM_BUFFER, uniformBuffer);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(uniforms), &uniforms);

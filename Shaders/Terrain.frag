@@ -35,6 +35,8 @@ uniform sampler2D grassTexture, grassNormal, grassRough, grassAo;
 uniform sampler2D rockTexture, rockNormal, rockRough, rockAo;
 uniform sampler2D snowTexture, snowNormal, snowRough, snowAo;
 uniform sampler2D sandTexture, sandNormal, sandRough, sandAo;
+uniform sampler2DArray waterTextureArray;
+uniform float waterFrame;
 
 
 vec3 CalculateLighting(
@@ -82,9 +84,21 @@ vec3 GetTextureByHeight() {
     return grassColor * grassBlend + rockColor * rockBlend + snowColor * snowBlend;
 }
 
+
+vec3 GetWaterColor() {
+    vec2 texCoords = TexCoords / 4.0; // Zvětšení dlaždicování vody
+    vec3 waterNormal = texture(waterTextureArray, vec3(texCoords, waterFrame)).rgb * 2.0 - 1.0;
+
+    // Barva vody (modifikovaná podle normálové mapy)
+    vec3 baseWaterColor = vec3(0.0, 0.2, 0.3);
+    vec3 finalWaterColor = baseWaterColor + 0.1 * waterNormal;
+
+    return finalWaterColor;
+}
+
 vec3 GetBiomeTexture(uint biomeID) {
     if (biomeID == 0) {
-        return CalculateLighting(sandTexture, sandNormal, sandRough, sandAo);
+        return GetWaterColor();
     }
     else if (biomeID == 1) {
         return CalculateLighting(grassTexture, grassNormal, grassRough, grassAo);
@@ -92,15 +106,34 @@ vec3 GetBiomeTexture(uint biomeID) {
     else if (biomeID == 2) {
         return GetTextureByHeight();
     }
+    else if (biomeID == 3) {
+        return CalculateLighting(sandTexture, sandNormal, sandRough, sandAo);
+    }
     return vec3(1.0, 0.0, 1.0);
 }
 
 
 void main() {
+    float height = FragPos.y;
+
     vec3 col1 = GetBiomeTexture(biomeID1);
     vec3 col2 = GetBiomeTexture(biomeID2);
     vec3 col3 = GetBiomeTexture(biomeID3);
-    vec3 finalColor = col1 * Weights.x + col2 * Weights.y + col3 * Weights.z;
+
+    vec3 finalColor;
+
+    //Specialni blend pro more
+    float seaFactor = 1.0 - smoothstep(1.0, 3.0, height);
+
+    vec3 adjustedWeights = Weights;
+    if (biomeID1 == 0) adjustedWeights.x *= seaFactor;
+    if (biomeID2 == 0) adjustedWeights.y *= seaFactor;
+    if (biomeID3 == 0) adjustedWeights.z *= seaFactor;
+
+    float totalWeight = adjustedWeights.x + adjustedWeights.y + adjustedWeights.z;
+    adjustedWeights /= totalWeight;
+
+    finalColor = col1 * adjustedWeights.x + col2 * adjustedWeights.y + col3 * adjustedWeights.z;
 
     FragColor = vec4(finalColor, 1.0);
 }

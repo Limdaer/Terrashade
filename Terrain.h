@@ -33,6 +33,7 @@ struct Uniforms {
     Params Dunes;
     Params Plains;
     Params Mountains;
+    Params Sea;
 };
 
 class Terrain {
@@ -44,11 +45,10 @@ public:
     void ComputeTerrain();
     void ComputeNormals();
     void UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity);
-    void ReadBiomeIDsFromSSBO();
     void ReadHeightsFromSSBO();
     float GetHeightAt(float worldX, float worldZ);
     void ModifyTerrain(glm::vec3 hitPoint, int mode);
-    void UpdateBiomeParams(const Params& dunes, const Params& plains, const Params& mountains);
+    void UpdateBiomeParams(const Params& dunes, const Params& plains, const Params& mountains, const Params& sea);
     float radius = 10.0f;
     float strength = 2.0f;
     float sigma = radius / 3.0f;

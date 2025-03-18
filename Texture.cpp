@@ -86,6 +86,43 @@ Texture::Texture(const std::vector<std::string>& faces) {
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 }
 
+Texture::Texture(const std::vector<std::string>& images, bool isArray) {
+    if (!isArray) return;
+
+    glGenTextures(1, &ID);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, ID);
+
+    int width, height, nrChannels;
+    unsigned char* data = stbi_load(images[0].c_str(), &width, &height, &nrChannels, 0);
+    if (!data) {
+        std::cerr << "Chyba: Nepodarilo se nacist texturu " << images[0] << std::endl;
+        return;
+    }
+    GLenum format = (nrChannels == 4) ? GL_RGBA : GL_RGB;
+    stbi_image_free(data); // Uvolníme první obrázek, jen jsme z něj získali rozměry
+
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, format, width, height, images.size(), 0, format, GL_UNSIGNED_BYTE, nullptr);
+
+    for (size_t i = 0; i < images.size(); i++) {
+        data = stbi_load(images[i].c_str(), &width, &height, &nrChannels, 0);
+        if (data) {
+            glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, width, height, 1, format, GL_UNSIGNED_BYTE, data);
+            stbi_image_free(data);
+        }
+        else {
+            std::cerr << "Chyba: Nepodarilo se nacist texturu " << images[i] << std::endl;
+        }
+    }
+
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+}
+
+
 void Texture::Bind(GLuint unit) const {
     glActiveTexture(GL_TEXTURE0 + unit);
     glBindTexture(GL_TEXTURE_2D, ID);

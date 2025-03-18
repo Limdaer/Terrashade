@@ -34,6 +34,7 @@ layout (std140, binding = 2) uniform UniformBuffer {
     Params Dunes;
     Params Plains;
     Params Mountains;
+    Params Sea;
 } u;
 
 
@@ -368,34 +369,48 @@ float getHeight(float x, float y, out uint[3] biomeID, out vec3 weights) {
     vec2 pos = vec2(x, y) * 0.1;
 
     vec3 cells[3];
-    weights = vec3(0.0,0.0,0.0);
+    weights = vec3(0.0, 0.0, 0.0);
     voronoiMap(pos, edgeSharpness, scale, cells[0], cells[1], cells[2], weights);
 
+    float seaLevel = 0.0;
     float heights[3];
 
-    Params activeBiomes[4]; // Maximálně 4 biomy
+    Params activeBiomes[5];
+    uint activeBiomeIDs[5];
     uint biomeCount = 0;
 
-    if (u.Dunes.enabled == 1) {
-        activeBiomes[biomeCount++] = u.Dunes;
+    if (u.Sea.enabled == 1) {
+        activeBiomes[biomeCount] = u.Sea;
+        activeBiomeIDs[biomeCount++] = 0;
     }
     if (u.Plains.enabled == 1) {
-        activeBiomes[biomeCount++] = u.Plains;
+        activeBiomes[biomeCount] = u.Plains;
+        activeBiomeIDs[biomeCount++] = 1;
     }
     if (u.Mountains.enabled == 1) {
-        activeBiomes[biomeCount++] = u.Mountains;
+        activeBiomes[biomeCount] = u.Mountains;
+        activeBiomeIDs[biomeCount++] = 2;
     }
-
+    if (u.Dunes.enabled == 1) { 
+        activeBiomes[biomeCount] = u.Dunes;
+        activeBiomeIDs[biomeCount++] = 3;
+    }
+    // Pokud žádný biom není povolený, vygeneruje se Sea
     if (biomeCount == 0) {
-        activeBiomes[0] = u.Dunes;
+        activeBiomes[0] = u.Sea;
+        activeBiomeIDs[0] = 0;
         biomeCount = 1;
     }
 
     for (int i = 0; i < 3; i++) {
         uint biomeHash = idk_hash(cells[i].xy);
         uint selectedBiome = biomeHash % biomeCount;
+        biomeID[i] = activeBiomeIDs[selectedBiome];
         heights[i] = combinedNoise(pos, activeBiomes[selectedBiome]);
-        biomeID[i] = selectedBiome;
+
+        if (biomeID[i] == 0) {
+            heights[i] = seaLevel;
+        }
     }
 
     float finalHeight = heights[0] * weights.x +
@@ -404,6 +419,7 @@ float getHeight(float x, float y, out uint[3] biomeID, out vec3 weights) {
 
     return finalHeight * heightScale;
 }
+
 
 // Výpočet normály kombinací gradientového přístupu a detailního šumu
 vec3 computeNormal(float x, float z) {

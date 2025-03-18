@@ -12,6 +12,11 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "Skybox.h"
+#include <sstream>
+#include <vector> 
+#include <string>
+#include <iomanip>
+
 
 
 const char* gl_translate_error(GLenum code)
@@ -134,6 +139,10 @@ bool isCursorFree = false; // Kurzorem lze pohybovat jen, když držíme ALT
 bool StartGUI = true;
 int editMode = 0;
 bool isEditingTerrain = false;
+std::vector<Texture> waterNormalTextures;
+const float waterFrames = 120.0;
+float currentWaterFrame = 0.0f;
+
 
 // Callback pro zpracování pohybu myší
 void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
@@ -251,6 +260,7 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     static Params dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5, 1 };
     static Params plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
     static Params mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0, 1 };
+    static Params seaParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
 
     ImGui::Checkbox("Auto Update", &autoUpdate);
 
@@ -288,7 +298,7 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
         dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5 , 1 };
         plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
         mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0, 1 };
-        terrain.UpdateBiomeParams(dunesParams, plainsParams, mountainsParams);
+        terrain.UpdateBiomeParams(dunesParams, plainsParams, mountainsParams, seaParams);
 
     }
 
@@ -298,11 +308,18 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
 
     bool biomeUpdated = false;
 
+    bool enabledSea = seaParams.enabled;
+    if (ImGui::Checkbox("Enable Sea", &enabledSea)) {
+        seaParams.enabled = enabledSea ? 1 : 0;
+        biomeUpdated = true;
+    }
+
     bool enabledDunes = dunesParams.enabled;
     if (ImGui::Checkbox("Enable Dunes", &enabledDunes)) {
         dunesParams.enabled = enabledDunes ? 1 : 0;
         biomeUpdated = true;
     }
+
     biomeUpdated |= ImGui::SliderFloat("Dunes FBM Freq", &dunesParams.fbmFreq, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Dunes FBM Amp", &dunesParams.fbmAmp, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Dunes Ridge Freq", &dunesParams.ridgeFreq, 0.0f, 5.0f);
@@ -347,7 +364,7 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     biomeUpdated |= ImGui::SliderFloat("Mountains Sand Amp", &mountainsParams.sandAmp, 0.0f, 5.0f);
 
     if ((biomeUpdated && autoUpdate) || StartGUI) {
-        terrain.UpdateBiomeParams(dunesParams, plainsParams, mountainsParams);
+        terrain.UpdateBiomeParams(dunesParams, plainsParams, mountainsParams, seaParams);
     }
 
     ImGui::Spacing();
@@ -357,8 +374,8 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     static float lightIntensity = 1.0f;
     static float ambientStrength = 0.2f;
     static float diffuseStrength = 0.8f;
-    static float specularStrength = 0.3f;
-    static float shininess = 32.0f;
+    static float specularStrength = 0.15f;
+    static float shininess = 1.5f;
     static glm::vec3 lightDir = glm::vec3(-1.0f, -1.0f, -1.0f);
     static glm::vec3 lightColor = glm::vec3(0.8f, 1.0f, 0.9f);
 
@@ -487,6 +504,14 @@ int main() {
     Texture sandRoughnessTexture("textures/sand/rough.jpg");
     Texture sandAoTexture("textures/sand/ao.jpg");
 
+    std::vector<std::string> waterNormalTexturesPaths;
+    for (int i = 1; i <= waterFrames; i++) {
+        std::ostringstream oss;
+        oss << "textures/water/" << std::setw(4) << std::setfill('0') << i << ".png";
+        waterNormalTexturesPaths.push_back(oss.str());
+    }
+    Texture waterNormalTextureArray(waterNormalTexturesPaths, true);
+
     initImGui(window);
 
     // Vytvoření terénu
@@ -501,7 +526,6 @@ int main() {
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
-
         glfwGetCursorPos(window, &mouseX, &mouseY);
 
         processInput(window, deltaTime);
@@ -538,6 +562,11 @@ int main() {
         terrainShader.SetMat4("view", glm::value_ptr(view));
         terrainShader.SetMat4("projection", glm::value_ptr(projection));
         terrainShader.SetUInt("gridSize", terrain.gridSize);
+
+        currentWaterFrame += 0.2f; // Rychlost animace
+        if (currentWaterFrame >= waterFrames) currentWaterFrame = 0.0f;
+
+        terrainShader.SetFloat("waterFrame", currentWaterFrame);
 
         // Pozice kamery
         terrainShader.SetVec3("viewPos", camera.Position);
@@ -601,7 +630,6 @@ int main() {
         sandRoughnessTexture.Bind(14);
         glActiveTexture(GL_TEXTURE15);
         sandAoTexture.Bind(15);
-
 
         // Vykreslení terénu
         terrain.Draw();
