@@ -144,6 +144,7 @@
     <ClCompile Include="Externals\imgui\imgui_widgets.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Skybox.cpp" />
+    <ClCompile Include="stb_image_write.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="Terrain.cpp" />
     <ClCompile Include="Terrashade.cpp" />
@@ -159,6 +160,7 @@
     <ClInclude Include="Externals\imgui\imstb_textedit.h" />
     <ClInclude Include="Externals\imgui\imstb_truetype.h" />
     <ClInclude Include="Skybox.h" />
+    <ClInclude Include="stb_image_write.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="stb_image.h" />

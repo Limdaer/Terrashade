@@ -39,9 +39,6 @@ layout (std140, binding = 2) uniform UniformBuffer {
 
 
 
-
-
-
 // Uniformy pro řízení terénu
 uniform int gridSize;
 uniform uint octaves;  // Počet hladin šumu

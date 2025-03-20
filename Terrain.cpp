@@ -1,7 +1,7 @@
 ﻿#include "Terrain.h"
 #include <iostream>
 
-Terrain::Terrain(int gridSize) : gridSize(gridSize), computeShader("Shaders/Terrain.comp") {
+Terrain::Terrain(int gridSize) : gridSize(gridSize), computeShader("Shaders/Terrain.comp"), erosionShader("Shaders/Erosion.comp") {
     GenerateTerrain();
     ComputeTerrain();
 }
@@ -116,6 +116,28 @@ void Terrain::ComputeNormals() {
     glUseProgram(0);
 }
 
+void Terrain::ComputeErosion() {
+    erosionShader.Use(); // Aktivace erosion compute shaderu
+
+    // Nastavení uniformů
+    glUniform1i(glGetUniformLocation(erosionShader.ID, "gridSize"), gridSize);
+    glUniform1i(glGetUniformLocation(erosionShader.ID, "numDroplets"), 70000); // Počet kapek vody
+
+    // Připojení SSBO
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, resultsSSBO);
+
+    // Spuštění výpočtu compute shaderu
+    glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); // Synchronizace s GPU
+
+    glUseProgram(0);
+}
+
+
+
+
+
+
 void Terrain::UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity) {
     computeShader.Use();  // Aktivace compute shaderu
 
@@ -131,20 +153,36 @@ void Terrain::UpdateTerrain(float scale, float edgeSharpness, float heightScale,
 }
 
 void Terrain::ReadHeightsFromSSBO() {
+    if (resultsSSBO == 0) {
+        std::cerr << "Chyba: SSBO neni inicializovano!\n";
+        return;
+    }
 
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT);
 
-    std::vector<glm::vec4> tempPositions(gridSize * gridSize); // Dočasný buffer pro SSBO
-    heights.resize(gridSize * gridSize); // Zajistíme správnou velikost vektoru heights
+    std::vector<Output> tempData(gridSize * gridSize);
+    heights.resize(gridSize * gridSize);
+    biomeIDs.resize(gridSize * gridSize * 3);  // 3 ID na každý bod
+    biomeWeights.resize(gridSize * gridSize * 3); // 3 váhy na každý bod
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, resultsSSBO);
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, tempPositions.size() * sizeof(glm::vec4), tempPositions.data());
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, tempData.size() * sizeof(Output), tempData.data());
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-    for (int i = 0; i < gridSize * gridSize; i++) {
-        heights[i] = tempPositions[i].y;
+    // Uložení dat do vektorů
+    for (size_t i = 0; i < tempData.size(); ++i) {
+        heights[i] = tempData[i].position.y;
+
+        biomeIDs[i * 3 + 0] = tempData[i].biomeIDs[0];
+        biomeIDs[i * 3 + 1] = tempData[i].biomeIDs[1];
+        biomeIDs[i * 3 + 2] = tempData[i].biomeIDs[2];
+
+        biomeWeights[i * 3 + 0] = tempData[i].biomeWeight[0];
+        biomeWeights[i * 3 + 1] = tempData[i].biomeWeight[1];
+        biomeWeights[i * 3 + 2] = tempData[i].biomeWeight[2];
     }
 }
+
 
 float Terrain::GetHeightAt(float worldX, float worldZ) {
     // Převod světových souřadnic na indexy v mřížce
@@ -162,6 +200,7 @@ float Terrain::GetHeightAt(float worldX, float worldZ) {
     // Vrácení odpovídající výšky
     return heights[index];
 }
+
 //Zmena terenu pomoci gaussovy krivky
 void Terrain::ModifyTerrain(glm::vec3 hitPoint, int mode) {
     int centerX = static_cast<int>(hitPoint.x + gridSize / 2);
@@ -210,6 +249,70 @@ void Terrain::UpdateBiomeParams(const Params& dunes, const Params& plains, const
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
+void Terrain::SaveHeightmapAsPNG(const std::string& filename) {
+    if (heights.empty()) {
+        std::cerr << "Chyba: Heightmapa neni nactena!\n";
+        return;
+    }
 
+    std::vector<uint8_t> imageData(gridSize * gridSize);
+
+    float minH = *std::min_element(heights.begin(), heights.end());
+    float maxH = *std::max_element(heights.begin(), heights.end());
+    float heightRange = maxH - minH;
+    if (heightRange == 0.0f) heightRange = 1.0f;
+
+    for (size_t i = 0; i < heights.size(); ++i) {
+        imageData[i] = static_cast<uint8_t>(255.0f * (heights[i] - minH) / (maxH - minH));
+    }
+
+    stbi_write_png(filename.c_str(), gridSize, gridSize, 1, imageData.data(), gridSize);
+
+    std::cout << "Heightmapa ulozena jako " << filename << std::endl;
+}
+
+void Terrain::SaveBiomeIDsAsPNG(const std::string& filename) {
+    if (biomeIDs.empty() || gridSize == 0) {
+        std::cerr << "Chyba: Biome ID data nejsou nactena!\n";
+        return;
+    }
+
+    std::vector<uint8_t> imageData(gridSize * gridSize * 3);
+
+    for (size_t i = 0; i < gridSize * gridSize; ++i) {
+        imageData[i * 3 + 0] = static_cast<uint8_t>(biomeIDs[i * 3 + 0] * 64);
+        imageData[i * 3 + 1] = static_cast<uint8_t>(biomeIDs[i * 3 + 1] * 64);
+        imageData[i * 3 + 2] = static_cast<uint8_t>(biomeIDs[i * 3 + 2] * 64);
+    }
+
+    if (!stbi_write_png(filename.c_str(), gridSize, gridSize, 3, imageData.data(), gridSize * 3)) {
+        std::cerr << "Chyba: Ukladani biome ID mapy selhalo!\n";
+    }
+    else {
+        std::cout << "Biome ID mapa ulozena jako " << filename << std::endl;
+    }
+}
+
+void Terrain::SaveBlendWeightsAsPNG(const std::string& filename) {
+    if (biomeWeights.empty() || gridSize == 0) {
+        std::cerr << "Chyba: Biome váhy nejsou nactene!\n";
+        return;
+    }
+
+    std::vector<uint8_t> imageData(gridSize * gridSize * 3);
+
+    for (size_t i = 0; i < gridSize * gridSize; ++i) {
+        imageData[i * 3 + 0] = static_cast<uint8_t>(255.0f * biomeWeights[i * 3 + 0]);
+        imageData[i * 3 + 1] = static_cast<uint8_t>(255.0f * biomeWeights[i * 3 + 1]);
+        imageData[i * 3 + 2] = static_cast<uint8_t>(255.0f * biomeWeights[i * 3 + 2]);
+    }
+
+    if (!stbi_write_png(filename.c_str(), gridSize, gridSize, 3, imageData.data(), gridSize * 3)) {
+        std::cerr << "Chyba: Ukladani biome weight mapy selhalo!\n";
+    }
+    else {
+        std::cout << "Biome weight mapa ulozena jako " << filename << std::endl;
+    }
+}
 
 

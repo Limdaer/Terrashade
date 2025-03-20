@@ -5,6 +5,9 @@
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include "Shader.h"
+#include "stb_image_write.h"
+
+
 
 struct alignas(16) Params {
     float fbmFreq;
@@ -26,6 +29,8 @@ struct alignas(16) Output {
     glm::vec4 normal;
     unsigned int biomeIDs[3];
     float biomeWeight[3];
+    float waterAmount;
+    float sedimentAmount;
 };
 
 
@@ -44,11 +49,15 @@ public:
     void Draw();
     void ComputeTerrain();
     void ComputeNormals();
+    void ComputeErosion();
     void UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity);
     void ReadHeightsFromSSBO();
     float GetHeightAt(float worldX, float worldZ);
     void ModifyTerrain(glm::vec3 hitPoint, int mode);
     void UpdateBiomeParams(const Params& dunes, const Params& plains, const Params& mountains, const Params& sea);
+    void SaveHeightmapAsPNG(const std::string& filename);
+    void SaveBlendWeightsAsPNG(const std::string& filename);
+    void SaveBiomeIDsAsPNG(const std::string& filename);
     float radius = 10.0f;
     float strength = 2.0f;
     float sigma = radius / 3.0f;
@@ -60,9 +69,11 @@ private:
     GLuint VAO, VBO, EBO;
     GLuint resultsSSBO, uniformBuffer;
     Shader computeShader;
+    Shader erosionShader;
     Uniforms uniforms = { 0 };
 
     std::vector<uint32_t> biomeIDs;
+    std::vector<float> biomeWeights;
     std::vector<float> heights;
 };
 

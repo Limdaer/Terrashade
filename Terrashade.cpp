@@ -142,6 +142,7 @@ bool isEditingTerrain = false;
 std::vector<Texture> waterNormalTextures;
 const float waterFrames = 120.0;
 float currentWaterFrame = 0.0f;
+bool erosionEnabled = false;
 
 
 // Callback pro zpracování pohybu myší
@@ -231,6 +232,14 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     ImGui::Separator();
 
     ImGui::Checkbox("Edit Terrain", &isEditingTerrain);
+    ImGui::SameLine();
+    if (ImGui::Button("Save Heightmap")) {
+        terrain.ReadHeightsFromSSBO();
+        terrain.SaveHeightmapAsPNG("Export/heightmap.png");
+        terrain.SaveBiomeIDsAsPNG("Export/biomeids.png");
+        terrain.SaveBlendWeightsAsPNG("Export/biomeweights.png");
+    }
+
 
     // Rezim uprav
     if (isEditingTerrain) {
@@ -272,6 +281,9 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     updated |= ImGui::SliderFloat("Persistence", &persistence, 0.1f, 1.0f);
     updated |= ImGui::SliderFloat("Lacunarity", &lacunarity, 1.0f, 4.0f);
 
+    if (updated)
+        erosionEnabled = false;
+
     if (StartGUI) {
         terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity);
     }
@@ -280,14 +292,30 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
         terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity);
     }
 
-    if (!autoUpdate && ImGui::Button("Regenerate Terrain")) {
+    if (erosionEnabled) {
+        if (ImGui::Button("Disable Erosion")) {
+            erosionEnabled = false;
+            std::cout << "Eroze vypnuta.\n";
+        }
+    }
+    else {
+        if (ImGui::Button("Enable Erosion")) {
+            erosionEnabled = true;
+            std::cout << "Eroze zapnuta.\n";
+        }
+    }
+
+    if (!autoUpdate && ImGui::Button("Generate Terrain")) {
         terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity);
+        if (erosionEnabled)
+            terrain.ComputeErosion();
     }
 
     if (!autoUpdate)
         ImGui::SameLine();
 
     if (ImGui::Button("Reset Terrain")) {
+        erosionEnabled = false;
         terrainScale = 10.0f;
         edgeSharpness = 20.0f;
         heightScale = 10.0f;
@@ -362,7 +390,9 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     biomeUpdated |= ImGui::SliderFloat("Mountains Morphed Amp", &mountainsParams.morphedvoroAmp, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Mountains Sand Freq", &mountainsParams.sandFreq, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Mountains Sand Amp", &mountainsParams.sandAmp, 0.0f, 5.0f);
-
+    
+    if (biomeUpdated)
+        erosionEnabled = false;
     if ((biomeUpdated && autoUpdate) || StartGUI) {
         terrain.UpdateBiomeParams(dunesParams, plainsParams, mountainsParams, seaParams);
     }
@@ -389,7 +419,6 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     updated_light |= ImGui::SliderFloat("Light Dir Y", &lightDir.y, -1.0f, 1.0f);
     updated_light |= ImGui::SliderFloat("Light Dir Z", &lightDir.z, -1.0f, 1.0f);
     updated_light |= ImGui::ColorEdit3("Light Color", glm::value_ptr(lightColor));
-
     if (updated_light || StartGUI) {
         shader.Use();
         shader.SetFloat("lightIntensity", lightIntensity);
@@ -539,6 +568,7 @@ int main() {
 
         renderGUI(terrain, terrainShader, window, mouseX, mouseY);
 
+
         // Výpočet kamerových matic
         glm::mat4 view = camera.GetViewMatrix();
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10000.0f);
@@ -650,7 +680,6 @@ int main() {
 
         skybox.Draw(skyboxShader);
         glDepthFunc(GL_LESS);
-
 
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
