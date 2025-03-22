@@ -266,11 +266,26 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     static int octaves = 8;
     static float persistence = 0.3f;
     static float lacunarity = 2.0f;
+    static unsigned int seed = 1337;
+    static int seedInput = static_cast<int>(seed);
     static Params dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5, 1 };
     static Params plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
     static Params mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0, 1 };
     static Params seaParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
+    
+    ImGui::InputInt("Seed", &seedInput);
+    if (seedInput < 0) seedInput = abs(seedInput); // zamezit záporným hodnotám
 
+    if (ImGui::Button("Apply Seed")) {
+        seed = static_cast<unsigned int>(seedInput);
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity, seed);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Random Seed")) {
+        seed = static_cast<unsigned int>(rand());
+        seedInput = static_cast<int>(seed);
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity, seed);
+    }
     ImGui::Checkbox("Auto Update", &autoUpdate);
 
     bool updated = false;
@@ -285,11 +300,11 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
         erosionEnabled = false;
 
     if (StartGUI) {
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity);
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity, seed);
     }
 
     if (updated && autoUpdate) {
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity);
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity, seed);
     }
 
     if (erosionEnabled) {
@@ -306,7 +321,7 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     }
 
     if (!autoUpdate && ImGui::Button("Generate Terrain")) {
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity);
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity, seed);
         if (erosionEnabled)
             terrain.ComputeErosion();
     }
@@ -322,7 +337,7 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
         octaves = 8;
         persistence = 0.3f;
         lacunarity = 2.0f;
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity);
+        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity, seed);
         dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5 , 1 };
         plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
         mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0, 1 };

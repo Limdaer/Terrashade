@@ -47,6 +47,7 @@ uniform float lacunarity;  // Jak moc se zvyšuje frekvence s další hladinou
 uniform float heightScale;   
 uniform float edgeSharpness; //Voronoi
 uniform float scale;
+uniform uint seed;
 /*uniform float perlinWeight = 0.0;
 uniform float voronoiWeight = 1.0;
 uniform float simplexWeight = 0.0;
@@ -88,10 +89,11 @@ vec2 grad2(int hash) {
 
 // Hashovací funkce pro pseudonáhodné hodnoty - není potřeba tabulka permutací
 int hash(int x, int y) {
-    x = (x << 13) ^ x;
-    y = (y << 17) ^ y;
+    x = (x + int(seed)) ^ (x << 13);
+    y = (y + int(seed)) ^ (y << 17);
     return ((x * y * 15731 + 789221) ^ (x + y * 1376312589)) & 255;
 }
+
 
 uint idk_hash(vec2 pos) {
     return uint(fract(sin(dot(pos, vec2(12.9898, 78.233))) * 43758.5453) * 1000000);

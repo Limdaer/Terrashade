@@ -50,7 +50,7 @@ public:
     void ComputeTerrain();
     void ComputeNormals();
     void ComputeErosion();
-    void UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity);
+    void UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity, unsigned int seed);
     void ReadHeightsFromSSBO();
     float GetHeightAt(float worldX, float worldZ);
     void ModifyTerrain(glm::vec3 hitPoint, int mode);

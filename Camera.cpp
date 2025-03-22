@@ -14,7 +14,7 @@ glm::mat4 Camera::GetViewMatrix() {
 }
 
 void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime, bool boost) {
-    float speedMultiplier = boost ? 5.0f : 1.0f; // Zrychlení pøi stisknutí SHIFT
+    float speedMultiplier = boost ? 5.0f : 1.0f; // Zrychlení pri stisknutí SHIFT
     float velocity = MovementSpeed * deltaTime * speedMultiplier;
 
     if (direction == FORWARD)

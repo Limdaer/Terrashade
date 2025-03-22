@@ -138,7 +138,7 @@ void Terrain::ComputeErosion() {
 
 
 
-void Terrain::UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity) {
+void Terrain::UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity, unsigned int seed) {
     computeShader.Use();  // Aktivace compute shaderu
 
     computeShader.SetFloat("scale", scale);
@@ -147,6 +147,7 @@ void Terrain::UpdateTerrain(float scale, float edgeSharpness, float heightScale,
     computeShader.SetUInt("octaves", octaves);
     computeShader.SetFloat("persistence", persistence);
     computeShader.SetFloat("lacunarity", lacunarity);
+    computeShader.SetUInt("seed", seed);
 
     glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);

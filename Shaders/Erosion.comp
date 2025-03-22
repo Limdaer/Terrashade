@@ -15,10 +15,21 @@ layout (std430, binding = 0) buffer Buffer {
     Output outputs[];
 };
 
+
 uniform int gridSize;
-uniform float erosionRate = 0.5; // Jak moc se terén eroduje
-uniform float depositionRate = 0.2; // Jak moc se sediment usazuje
-uniform int numDroplets = 70000; // Počet kapek vody
+uniform float erosionRate = 4.5; // Jak moc se terén eroduje
+uniform float depositionRate = 2.2; // Jak moc se sediment usazuje
+uniform int numDroplets = 50000; // Počet kapek vody
+uniform float inertia = 0.05;
+uniform float sedimentCapacityFactor = 4.0;
+uniform float minSedimentCapacity = 0.01;
+uniform float erodeSpeed = 2.0;
+uniform float depositSpeed = 0.5;
+uniform float gravity = 9.8;
+uniform float initialWaterVolume = 10.0;
+uniform float initialSpeed = 2.0;
+
+
 
 // Náhodná funkce pro pohyb kapky (simulace random směru)
 vec2 randomDirection(vec2 seed) {
@@ -31,58 +42,98 @@ void initializeDroplet(out vec2 position) {
     position = vec2(float(gl_GlobalInvocationID.x % gridSize), float(gl_GlobalInvocationID.y % gridSize));
 }
 
-// Výpočet gradientu výšky v daném bodě
-vec2 computeGradient(uint x, uint y) {
-    if (x == 0 || x >= gridSize - 1 || y == 0 || y >= gridSize - 1) {
-        return vec2(0.0); // Na okrajích nepočítáme gradient
-    }
+// Vrací výšku v konkrétní pozici (s bilineární interpolací)
+float getHeight(vec2 pos) {
+    vec2 cell = floor(pos);
+    vec2 offset = pos - cell;
 
-    uint leftIndex = y * gridSize + (x - 1);
-    uint rightIndex = y * gridSize + (x + 1);
-    uint downIndex = (y - 1) * gridSize + x;
-    uint upIndex = (y + 1) * gridSize + x;
+    uint x = uint(cell.x);
+    uint y = uint(cell.y);
 
-    float hL = outputs[leftIndex].position.y;
-    float hR = outputs[rightIndex].position.y;
-    float hD = outputs[downIndex].position.y;
-    float hU = outputs[upIndex].position.y;
+    if (x >= gridSize - 1 || y >= gridSize - 1) return 0.0; // bezpečnostní kontrola
 
-    // Gradient (směr největšího poklesu)
-    float gx = (hR - hL) * 0.5;
-    float gy = (hU - hD) * 0.5;
+    uint index = y * gridSize + x;
+
+    float h00 = outputs[index].position.y;
+    float h10 = outputs[index + 1].position.y;
+    float h01 = outputs[index + gridSize].position.y;
+    float h11 = outputs[index + gridSize + 1].position.y;
+
+    float hx0 = mix(h00, h10, offset.x);
+    float hx1 = mix(h01, h11, offset.x);
+    return mix(hx0, hx1, offset.y);
+}
+
+
+// Výpočet gradientu pomocí bilineární interpolace výšek
+vec2 computeGradient(vec2 pos) {
+    float eps = 0.5;
+
+    float heightL = getHeight(pos - vec2(eps, 0.0));
+    float heightR = getHeight(pos + vec2(eps, 0.0));
+    float heightD = getHeight(pos - vec2(0.0, eps));
+    float heightU = getHeight(pos + vec2(0.0, eps));
+
+    float gx = (heightR - heightL) * 0.5;
+    float gy = (heightU - heightD) * 0.5;
 
     return vec2(gx, gy);
 }
 
+
 // Posun kapky dolů po svahu podle gradientu
-void moveDroplet(inout vec2 position) {
-    uint x = uint(position.x);
-    uint y = uint(position.y);
+void moveDroplet(inout vec2 position, inout vec2 direction) {
+    vec2 gradient = computeGradient(position);
 
-    vec2 gradient = computeGradient(x, y);
+    // Nový směr = kombinace předchozího směru a gradientu
+    direction = direction * inertia - gradient * (1.0 - inertia);
 
-    // Pokud je gradient nulový, kapka se přestane pohybovat
-    if (length(gradient) < 0.0001) return;
+    // Pokud je směr nulový, kapka se zastaví
+    if (length(direction) < 0.0001) return;
 
-    // Normalizace gradientu → získáme směr pohybu
-    vec2 direction = normalize(-gradient);  // Kapka jde dolů, takže negujeme gradient
+    direction = normalize(direction);
 
-    // Posun kapky v daném směru
-    position += direction * 0.5; // Rychlost pohybu (můžeš upravit)
+    // Posun kapky
+    position += direction * 0.5;
 }
+
 
 // Odebírá sediment z terénu na základě sklonu
 void erodeTerrain(uint index, float erosionAmount) {
-    outputs[index].position.y -= erosionAmount;  // Snížíme výšku terénu
-    outputs[index].sedimentAmount += erosionAmount;  // Sediment si "vezme" kapka
+    // Zajistíme, že eroze bude vždy kladná
+    float positiveAmount = max(erosionAmount, 0.0);
+
+    float currentHeight = outputs[index].position.y;
+    float allowedErosion = max(currentHeight - 0.01, 0.0); // minimální výška
+
+    float finalErosion = min(positiveAmount, allowedErosion);
+
+    outputs[index].position.y -= finalErosion;
+    outputs[index].sedimentAmount += finalErosion;
 }
+
+
 
 // Ukládá sediment, pokud se kapka zastaví
-void depositSediment(uint index, float depositAmount) {
-    outputs[index].position.y += depositAmount;  // Zvýšíme výšku
-    outputs[index].sedimentAmount -= depositAmount;  // Kapka ztratí sediment
-}
+void depositSediment(vec2 pos, float amount) {
+    ivec2 cell = ivec2(floor(pos));
+    vec2 offset = pos - vec2(cell);
 
+    uint indexNW = uint(cell.y) * gridSize + uint(cell.x);
+    uint indexNE = indexNW + 1;
+    uint indexSW = indexNW + gridSize;
+    uint indexSE = indexSW + 1;
+
+    float wNW = (1.0 - offset.x) * (1.0 - offset.y);
+    float wNE = offset.x * (1.0 - offset.y);
+    float wSW = (1.0 - offset.x) * offset.y;
+    float wSE = offset.x * offset.y;
+
+    outputs[indexNW].position.y += amount * wNW;
+    outputs[indexNE].position.y += amount * wNE;
+    outputs[indexSW].position.y += amount * wSW;
+    outputs[indexSE].position.y += amount * wSE;
+}
 
 
 void main() {
@@ -92,33 +143,75 @@ void main() {
 
     uint index = y * gridSize + x;
 
-    // Náhodně umístíme kapku
     vec2 dropletPos;
     initializeDroplet(dropletPos);
+    float speed = initialSpeed;
+    float water = initialWaterVolume;
 
     float sediment = 0.0;  // Kolik sedimentu kapka nese
+    vec2 direction = vec2(0.0);
 
-    for (int i = 0; i < 30; i++) {  // Simulujeme 30 kroků pohybu
-        uint dropletX = uint(dropletPos.x);
-        uint dropletY = uint(dropletPos.y);
-        uint dropletIndex = dropletY * gridSize + dropletX;
+    float prevHeight = getHeight(dropletPos);
 
-        // Výpočet sklonu terénu
-        vec2 gradient = computeGradient(dropletX, dropletY);
-        float slope = length(gradient); // Velikost sklonu
+    for (int i = 0; i < 30; i++) {
+        vec2 gradient = computeGradient(dropletPos);
 
-        // Pokud je svah příliš malý → kapka se zastaví a uloží sediment
-        if (slope < 0.01) {
-            depositSediment(dropletIndex, sediment);
+        vec2 nextDirection = direction * inertia - gradient * (1.0 - inertia);
+        if (length(nextDirection) < 0.0001) break;
+        nextDirection = normalize(nextDirection);
+    
+        vec2 nextPos = dropletPos + nextDirection * 0.5;
+        if (nextPos.x < 0.0 || nextPos.x >= gridSize - 1 || nextPos.y < 0.0 || nextPos.y >= gridSize - 1)
             break;
+
+        float newHeight = getHeight(nextPos);
+        float deltaHeight = newHeight - prevHeight;
+
+        float capacity = max(-deltaHeight * speed * water * sedimentCapacityFactor, minSedimentCapacity);
+
+    
+    if (sediment > capacity || deltaHeight > 0.0) {
+        float amountToDeposit = 0.0;
+        if (deltaHeight > 0.0) {
+            amountToDeposit = min(deltaHeight, sediment);
+        } else {
+            amountToDeposit = (sediment - capacity) * depositSpeed;
+            amountToDeposit = min(amountToDeposit, sediment);
         }
 
-        // Kolik sedimentu kapka odnese? (Čím větší sklon, tím více)
-        float erosionAmount = min(slope * 0.05, 0.1);
-        erodeTerrain(dropletIndex, erosionAmount);
-        sediment += erosionAmount;  // Kapka nese sediment
+        amountToDeposit = max(0.0, amountToDeposit);
 
-        // Posun kapky dolů
-        moveDroplet(dropletPos);
+        if (amountToDeposit > 0.0) {
+            depositSediment(dropletPos, amountToDeposit);
+            sediment -= amountToDeposit;
+        }
+
+    } else {
+        float slope = length(gradient); // velikost gradientu
+
+        float erosionFromCapacity = (capacity - sediment) * erodeSpeed;
+        float slopeFactor = smoothstep(0.05, 0.2, slope); // jemné vážení
+        float rawErosion = erosionFromCapacity * slopeFactor * 5.0;
+
+        float amountToErode = min(rawErosion, -deltaHeight);
+        amountToErode = max(0.0, amountToErode);
+
+
+
+
+        if (amountToErode > 0.0) {
+            uint idx = uint(dropletPos.y) * gridSize + uint(dropletPos.x);
+            erodeTerrain(idx, amountToErode);
+            sediment += amountToErode;
+        }
     }
+
+        // Update pozice a směru
+        direction = nextDirection;
+        dropletPos = nextPos;
+        prevHeight = newHeight;
+        speed = sqrt(speed * speed + deltaHeight * gravity);
+        water *= (1.0 - 0.005);
+    }
+
 }
