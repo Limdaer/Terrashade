@@ -268,11 +268,28 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     static float lacunarity = 2.0f;
     static unsigned int seed = 1337;
     static int seedInput = static_cast<int>(seed);
+    static double erosionPeriod = 0.1;
+    static double lastErosionTime = 0;
     static Params dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5, 1 };
     static Params plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
     static Params mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0, 1 };
     static Params seaParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
-    
+    static Erosion erosion;
+
+    ImGui::Separator();
+
+    ImGui::SliderInt("numDroplets", &erosion.numDroplets, 1000, 10000000);
+    ImGui::SliderFloat("inertia", &erosion.inertia, 0, 1);
+    ImGui::SliderFloat("sedimentCapacityFactor", &erosion.sedimentCapacityFactor, 0, 10);
+    ImGui::SliderFloat("minSedimentCapacity", &erosion.minSedimentCapacity, 0, 1);
+    ImGui::SliderFloat("erodeSpeed", &erosion.erodeSpeed, 0, 10);
+    ImGui::SliderFloat("depositSpeed", &erosion.depositSpeed, 0, 10);
+    ImGui::SliderFloat("gravity", &erosion.gravity, 0, 100);
+    ImGui::SliderFloat("initialWaterVolume", &erosion.initialWaterVolume, 0, 100);
+    ImGui::SliderFloat("initialSpeed", &erosion.initialSpeed, 0, 10);
+    ImGui::SliderFloat("erosionRate", &erosion.erosionRate, 0, 10);
+    ImGui::SliderFloat("depositionRate", &erosion.depositionRate, 0, 10);
+
     ImGui::InputInt("Seed", &seedInput);
     if (seedInput < 0) seedInput = abs(seedInput); // zamezit záporným hodnotám
 
@@ -320,10 +337,11 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
         }
     }
 
-    if (!autoUpdate && ImGui::Button("Generate Terrain")) {
-        terrain.UpdateTerrain(terrainScale, edgeSharpness, heightScale, octaves, persistence, lacunarity, seed);
-        if (erosionEnabled)
-            terrain.ComputeErosion();
+    double now = glfwGetTime();
+    if (erosionEnabled && now - lastErosionTime > erosionPeriod) {
+        terrain.ComputeErosion(erosion);
+        terrain.ComputeNormals();
+        lastErosionTime = now;
     }
 
     if (!autoUpdate)
@@ -405,7 +423,7 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     biomeUpdated |= ImGui::SliderFloat("Mountains Morphed Amp", &mountainsParams.morphedvoroAmp, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Mountains Sand Freq", &mountainsParams.sandFreq, 0.0f, 5.0f);
     biomeUpdated |= ImGui::SliderFloat("Mountains Sand Amp", &mountainsParams.sandAmp, 0.0f, 5.0f);
-    
+
     if (biomeUpdated)
         erosionEnabled = false;
     if ((biomeUpdated && autoUpdate) || StartGUI) {
@@ -559,7 +577,7 @@ int main() {
     initImGui(window);
 
     // Vytvoření terénu
-    Terrain terrain(1000); // 1000x1000 mřížka
+    Terrain terrain(1500, 1500); // 1000x1000 mřížka
     double mouseX, mouseY;
 
     Skybox skybox;
@@ -585,8 +603,9 @@ int main() {
 
 
         // Výpočet kamerových matic
+        float FOV = glm::radians(75.0f);
         glm::mat4 view = camera.GetViewMatrix();
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10000.0f);
+        glm::mat4 projection = glm::perspective(FOV, 800.0f / 600.0f, 0.1f, 10000.0f);
         glm::vec3 rayDir = GetRayFromMouse((float)mouseX, (float)mouseY, 1600, 1200, projection, view);
 
         glm::vec3 rayOrigin = camera.Position;
@@ -598,6 +617,8 @@ int main() {
                 terrain.ModifyTerrain(hitPoint, editMode);
             }
         }
+        currentWaterFrame += 0.2f; // Rychlost animace
+        if (currentWaterFrame >= waterFrames) currentWaterFrame = 0.0f;
 
         // Použití shaderu
         glm::mat4 model = glm::mat4(1.0f);
@@ -607,19 +628,14 @@ int main() {
         terrainShader.SetMat4("view", glm::value_ptr(view));
         terrainShader.SetMat4("projection", glm::value_ptr(projection));
         terrainShader.SetUInt("gridSize", terrain.gridSize);
+        terrainShader.SetFloat("gridDx", terrain.worldSize / terrain.gridSize);
 
-        currentWaterFrame += 0.2f; // Rychlost animace
-        if (currentWaterFrame >= waterFrames) currentWaterFrame = 0.0f;
 
         terrainShader.SetFloat("waterFrame", currentWaterFrame);
 
         // Pozice kamery
         terrainShader.SetVec3("viewPos", camera.Position);
 
-        if (isEditingTerrain && RayIntersectsTerrain(camera.Position, rayDir, terrain, hitPoint)) {
-            terrainShader.SetVec3("editPosition", hitPoint);
-            terrainShader.SetFloat("editRadius", 5.0f);
-        }
 
         // Nastavení texturových jednotek pro shader
         glUniform1i(glGetUniformLocation(terrainShader.ID, "grassTexture"), 0);
@@ -677,7 +693,7 @@ int main() {
         sandAoTexture.Bind(15);
 
         // Vykreslení terénu
-        terrain.Draw();
+        terrain.Draw(terrainShader,camera.Position, FOV, camera.Front);
 
 
         // Vykreslení skyboxu

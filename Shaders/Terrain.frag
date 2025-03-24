@@ -9,6 +9,7 @@ flat in uint biomeID1;
 flat in uint biomeID2;
 flat in uint biomeID3;
 in vec3 Weights;
+in float visible;
 
 // Uniformy pro osvětlení
 uniform vec3 lightDir; // Směr světla
@@ -114,6 +115,8 @@ vec3 GetBiomeTexture(uint biomeID) {
 
 
 void main() {
+//    FragColor = vec4(visible,visible,0,1);
+//    return;
     float height = FragPos.y;
 
     vec3 col1 = GetBiomeTexture(biomeID1);

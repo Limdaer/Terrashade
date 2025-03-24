@@ -111,4 +111,30 @@
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Shaders\Erosion.comp">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Shaders\skybox.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Shaders\skybox.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Shaders\Terrain.comp">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Shaders\Terrain.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Shaders\Terrain.vert">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Shaders\Normals.comp">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Shaders\ErosionApply.comp">
+      <Filter>Resource Files</Filter>
+    </None>
+  </ItemGroup>
 </Project>

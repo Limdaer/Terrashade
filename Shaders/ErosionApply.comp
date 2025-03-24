@@ -1,0 +1,34 @@
+#version 460 core
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+struct Output {
+    vec4 position;
+    vec4 normal;
+    uint biomeIDs[3];
+    float biomeWeight[3];
+    float waterAmount;
+    float sedimentAmount;
+};
+
+layout (std430, binding = 0) buffer Outputs {
+    Output outputs[];
+};
+
+layout (std430, binding = 1) buffer Inputs {
+    int inputs[];
+};
+
+#define BRUSHPREC (1024 * 16)
+uniform int gridSize;
+
+void main() {
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+    if (x >= gridSize || y >= gridSize) return;
+
+    uint index = y * gridSize + x;
+
+    outputs[index].position.y = clamp(outputs[index].position.y + clamp(float(inputs[index]) / BRUSHPREC, -0.5, 0.5), -10.0, 1000.0);
+    inputs[index] = 0;
+}

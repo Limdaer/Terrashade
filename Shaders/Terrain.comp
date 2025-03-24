@@ -41,6 +41,7 @@ layout (std140, binding = 2) uniform UniformBuffer {
 
 // Uniformy pro řízení terénu
 uniform int gridSize;
+uniform float gridDx;
 uniform uint octaves;  // Počet hladin šumu
 uniform float persistence; // Jak moc se snižuje amplituda s další hladinou
 uniform float lacunarity;  // Jak moc se zvyšuje frekvence s další hladinou
@@ -91,7 +92,7 @@ vec2 grad2(int hash) {
 int hash(int x, int y) {
     x = (x + int(seed)) ^ (x << 13);
     y = (y + int(seed)) ^ (y << 17);
-    return ((x * y * 15731 + 789221) ^ (x + y * 1376312589)) & 255;
+    return ((x * y * 15731 + 789221) ^ (x + y * 1376312589)) & 1023;
 }
 
 
@@ -191,9 +192,15 @@ float fbm2(vec2 pos) {
 }
 
 vec2 hash(vec2 p) {
-    return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), 
-                          dot(p, vec2(269.5, 183.3)))) * 43758.5453);
+    vec2 offsetA = vec2(127.1, 311.7) + seed;
+    vec2 offsetB = vec2(269.5, 183.3) + seed * 2.0;
+
+    return fract(sin(vec2(
+        dot(p, offsetA),
+        dot(p, offsetB)
+    )) * 43758.5453);
 }
+
 
 float voronoiNoise(vec2 pos, float edgeSharpness, float baseScale) {
     pos /= baseScale;
@@ -443,8 +450,8 @@ void main() {
     uint[3] biomeID;
     vec3 weights;
     uint index = y * gridSize + x;
-    float worldX = float(x) - float(gridSize) / 2.0;
-    float worldZ = float(y) - float(gridSize) / 2.0;
+    float worldX = (float(x) - float(gridSize) / 2.0) * gridDx;
+    float worldZ = (float(y) - float(gridSize) / 2.0) * gridDx;
     float worldY = getHeight(worldX, worldZ, biomeID, weights);
 
     results.position = vec4(worldX, worldY, worldZ, 1.0);

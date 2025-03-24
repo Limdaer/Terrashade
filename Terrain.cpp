@@ -1,7 +1,12 @@
 ﻿#include "Terrain.h"
 #include <iostream>
+#define BRUSHPREC (1024 * 16)
+#define CHUNK 32
 
-Terrain::Terrain(int gridSize) : gridSize(gridSize), computeShader("Shaders/Terrain.comp"), erosionShader("Shaders/Erosion.comp") {
+
+Terrain::Terrain(int gridSize, float worldSize) : gridSize(gridSize), worldSize(worldSize), 
+computeShader("Shaders/Terrain.comp"), erosionShader("Shaders/Erosion.comp"), normalShader("Shaders/Normals.comp"), 
+erosionApplyShader("Shaders/ErosionApply.comp") {
     GenerateTerrain();
     ComputeTerrain();
 }
@@ -16,11 +21,21 @@ Terrain::~Terrain() {
 }
 
 void Terrain::GenerateTerrain() {
-
+    int chunksNum = (gridSize + CHUNK - 1) / CHUNK;
     // SSBO pro pozice (x, y, z)
     glGenBuffers(1, &resultsSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, resultsSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, gridSize * gridSize * sizeof(Output), NULL, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    glGenBuffers(1, &intsSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, intsSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, gridSize * gridSize * sizeof(int), NULL, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    glGenBuffers(1, &chunkPosSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, chunkPosSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, (chunksNum * chunksNum * 2 * sizeof(int)), NULL, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
     // Uniformbuffer
@@ -58,13 +73,63 @@ void Terrain::GenerateTerrain() {
 }
 
 
-void Terrain::Draw() {
+void Terrain::Draw(Shader terrain,glm::vec3 cameraPos, float FOV, glm::vec3 viewDir) {
     glBindVertexArray(VAO);
 
+    int chunksNum = (gridSize + CHUNK - 1) / CHUNK;
+    float dx = gridSize / worldSize;
+    glm::vec2 center;
+    glm::vec2 v = glm::vec2(viewDir.x, viewDir.z);
+    glm::vec2 perp = glm::vec2(-v.y, v.x);
+    float sinAlpha = sinf(FOV + 1e-6f);
+
+    // výškový faktor – čím výš jsi, tím víc rozšiřujeme výseč
+    float heightFactor = cameraPos.y * 0.15;
+
+    // fov faktor – čím větší fov, tím větší faktor (v radiánech)
+    float fovFactor = glm::clamp(FOV / glm::radians(60.0f), 1.0f, 2.0f);
+
+    // konečný rozšířený sinAlpha
+    sinAlpha *= heightFactor * fovFactor;
+
+    glm::vec2 v1 = glm::normalize(v) + sinAlpha * glm::normalize(perp);
+    glm::vec2 v2 = glm::normalize(v) - sinAlpha * glm::normalize(perp);
+    glm::vec2 v3 = glm::normalize(perp);
+    glm::vec2 v1n = -glm::normalize(glm::normalize(perp) + sinAlpha * glm::normalize(v));
+    glm::vec2 v2n = glm::normalize(glm::normalize(perp) - sinAlpha * glm::normalize(v));
+    glm::vec2 v3n = -glm::normalize(v);
+    float chunkR = sqrtf(2)* CHUNK / 2 * dx + cameraPos.y;
+
+    chunksToRender.clear();
+
+    for (int y = 0; y < chunksNum; y++) {
+        for (int x = 0; x < chunksNum; x++) {
+            float worldX = (x + 0.5f) * CHUNK - float(gridSize) / 2.0f * dx;
+            float worldZ = (y + 0.5f) * CHUNK - float(gridSize) / 2.0f * dx;
+            center = glm::vec2(worldX, worldZ);
+            glm::vec2 relCenter = center - glm::vec2(cameraPos.x, cameraPos.z);
+
+            float d1 = glm::dot(relCenter, v1n);
+            float d2 = glm::dot(relCenter, v2n);
+            float d3 = glm::dot(relCenter, v3n);
+            if (d1 <= chunkR && d2 <= chunkR && d3 <= chunkR) {
+                chunksToRender.push_back(1);
+                chunksToRender.push_back(1);
+            }
+            else {
+                chunksToRender.push_back(0);
+                chunksToRender.push_back(0);
+            }
+        }
+    }
+    glNamedBufferSubData(chunkPosSSBO, 0, chunksToRender.size() * sizeof(int), chunksToRender.data());
+    glUniform1i(glGetUniformLocation(terrain.ID, "chunkCount"), chunksNum);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, chunkPosSSBO);
+
     // Připojení SSBO jako zdroje dat pro VAO
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER,0 ,resultsSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, resultsSSBO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glDrawElements(GL_TRIANGLES, (gridSize - 1) * (gridSize - 1) * 6,GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, (gridSize - 1) * (gridSize - 1) * 6, GL_UNSIGNED_INT, 0);
 }
 
 
@@ -106,9 +171,65 @@ void Terrain::ComputeTerrain() {
 }
 
 void Terrain::ComputeNormals() {
-    computeShader.Use();
+    normalShader.Use();
 
-    glUniform1i(glGetUniformLocation(computeShader.ID, "computeNormalsOnly"), 1);
+    glUniform1i(glGetUniformLocation(normalShader.ID, "gridSize"), gridSize);
+
+    glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    glUseProgram(0);
+}
+//Eroze
+void Terrain::ComputeErosion(Erosion erosion) {
+    erosionShader.Use(); // Aktivace erosion compute shaderu
+    int dropletsPerPos = (erosion.numDroplets + gridSize * gridSize - 1) / (gridSize * gridSize);
+    dropletIdx++;
+    float brush[] = {
+      0.0f, 0.0f, 0.1f, 0.2f, 0.3f, 0.2f, 0.1f, 0.0f, 0.0f,
+      0.0f, 0.2f, 0.4f, 0.6f, 0.7f, 0.6f, 0.4f, 0.2f, 0.0f,
+      0.1f, 0.4f, 0.7f, 0.9f, 1.0f, 0.9f, 0.7f, 0.4f, 0.1f,
+      0.2f, 0.6f, 0.9f, 1.0f, 1.0f, 1.0f, 0.9f, 0.6f, 0.2f,
+      0.3f, 0.7f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.7f, 0.3f,
+      0.2f, 0.6f, 0.9f, 1.0f, 1.0f, 1.0f, 0.9f, 0.6f, 0.2f,
+      0.1f, 0.4f, 0.7f, 0.9f, 1.0f, 0.9f, 0.7f, 0.4f, 0.1f,
+      0.0f, 0.2f, 0.4f, 0.6f, 0.7f, 0.6f, 0.4f, 0.2f, 0.0f,
+      0.0f, 0.0f, 0.1f, 0.2f, 0.3f, 0.2f, 0.1f, 0.0f, 0.0f,
+    };
+
+    int brushInt[9 * 9];
+    for (int i = 0; i < 9 * 9; i++) {
+        brushInt[i] = int(brush[i] * BRUSHPREC);
+    }
+    
+    
+    // Nastavení uniformů
+    glUniform1i(glGetUniformLocation(erosionShader.ID, "gridSize"), gridSize);
+    glUniform1i(glGetUniformLocation(erosionShader.ID, "dropletIdx"), dropletIdx);
+    glUniform1i(glGetUniformLocation(erosionShader.ID, "dropletsPerPos"), dropletsPerPos);
+    glUniform1iv(glGetUniformLocation(erosionShader.ID, "brush_weights"), 9*9, brushInt);
+    glUniform1i(glGetUniformLocation(erosionShader.ID, "numDroplets"), erosion.numDroplets); // Počet kapek vody
+    glUniform1f(glGetUniformLocation(erosionShader.ID, "erosionRate"), erosion.erosionRate);
+    glUniform1f(glGetUniformLocation(erosionShader.ID, "depositionRate"), erosion.depositionRate);
+    glUniform1f(glGetUniformLocation(erosionShader.ID, "inertia"), erosion.inertia);
+    glUniform1f(glGetUniformLocation(erosionShader.ID, "sedimentCapacityFactor"), erosion.sedimentCapacityFactor);
+    glUniform1f(glGetUniformLocation(erosionShader.ID, "minSedimentCapacity"), erosion.minSedimentCapacity);
+    glUniform1f(glGetUniformLocation(erosionShader.ID, "erodeSpeed"), erosion.erodeSpeed);
+    glUniform1f(glGetUniformLocation(erosionShader.ID, "depositSpeed"), erosion.depositSpeed);
+    glUniform1f(glGetUniformLocation(erosionShader.ID, "gravity"), erosion.gravity);
+    glUniform1f(glGetUniformLocation(erosionShader.ID, "initialWaterVolume"), erosion.initialWaterVolume);
+    glUniform1f(glGetUniformLocation(erosionShader.ID, "initialSpeed"), erosion.initialSpeed);
+
+    // Připojení SSBO
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, resultsSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, intsSSBO);
+
+    // Spuštění výpočtu compute shaderu
+    glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); // Synchronizace s GPU
+
+    erosionApplyShader.Use();
+    glUniform1i(glGetUniformLocation(erosionApplyShader.ID, "gridSize"), gridSize);
 
     glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -116,29 +237,8 @@ void Terrain::ComputeNormals() {
     glUseProgram(0);
 }
 
-void Terrain::ComputeErosion() {
-    erosionShader.Use(); // Aktivace erosion compute shaderu
-
-    // Nastavení uniformů
-    glUniform1i(glGetUniformLocation(erosionShader.ID, "gridSize"), gridSize);
-    glUniform1i(glGetUniformLocation(erosionShader.ID, "numDroplets"), 70000); // Počet kapek vody
-
-    // Připojení SSBO
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, resultsSSBO);
-
-    // Spuštění výpočtu compute shaderu
-    glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1);
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT); // Synchronizace s GPU
-
-    glUseProgram(0);
-}
-
-
-
-
-
-
-void Terrain::UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity, unsigned int seed) {
+void Terrain::UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, 
+    float persistence, float lacunarity, unsigned int seed) {
     computeShader.Use();  // Aktivace compute shaderu
 
     computeShader.SetFloat("scale", scale);
@@ -148,6 +248,7 @@ void Terrain::UpdateTerrain(float scale, float edgeSharpness, float heightScale,
     computeShader.SetFloat("persistence", persistence);
     computeShader.SetFloat("lacunarity", lacunarity);
     computeShader.SetUInt("seed", seed);
+    computeShader.SetFloat("gridDx", worldSize / gridSize);
 
     glDispatchCompute((gridSize + 15) / 16, (gridSize + 15) / 16, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -315,5 +416,4 @@ void Terrain::SaveBlendWeightsAsPNG(const std::string& filename) {
         std::cout << "Biome weight mapa ulozena jako " << filename << std::endl;
     }
 }
-
 

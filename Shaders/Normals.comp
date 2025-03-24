@@ -1,0 +1,38 @@
+#version 460 core
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+struct Output {
+    vec4 position;
+    vec4 normal;
+    uint biomeIDs[3];
+    float biomeWeight[3];
+    float waterAmount;
+    float sedimentAmount;
+};
+
+layout (std430, binding = 0) buffer Buffer {
+    Output outputs[];
+};
+
+uniform int gridSize;
+
+
+void main() {
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+    if (x >= gridSize - 1 || y >= gridSize - 1 || x == 0 || y == 0) return;
+
+    uint index = y * gridSize + x;
+
+    vec4 s = outputs[index - gridSize].position;
+    vec4 n = outputs[index + gridSize].position;
+    vec4 e = outputs[index + 1].position;
+    vec4 w = outputs[index - 1].position;
+
+    vec3 dir1 = (e - w).xyz;
+    vec3 dir2 = (n - s).xyz;
+    vec3 normal = normalize(cross(dir2,dir1));
+    outputs[index].normal.xyz = normal;
+
+}
