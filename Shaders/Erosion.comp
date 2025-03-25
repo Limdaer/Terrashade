@@ -104,7 +104,7 @@ void main() {
     float sediment = 0.0;  // Kolik sedimentu kapka nese
     vec2 direction = vec2(0.0);
 
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 50; i++) {
         if(water <= 0.01 || speed <= 0.01) break;
         vec2 gradient;
         vec2 temp;
@@ -124,32 +124,79 @@ void main() {
 
     
         if (sediment > capacity || deltaHeight > 0.0) {
-            float amountToDeposit = 0.0;
-            if (deltaHeight > 0.0) {
-                amountToDeposit = min(deltaHeight, sediment);
-            } else {
-                amountToDeposit = (sediment - capacity) * depositSpeed;
-            }
+            // Spočítáme kolik chceme uložit
+            float amountToDeposit = (deltaHeight > 0.0)
+                ? min(deltaHeight, sediment)
+                : (sediment - capacity) * depositSpeed;
 
-            if (amountToDeposit > 0.0) {
+            // Normalizace na BRUSHPREC a přepočet pro celá čísla
+            int totalDeposit = int(amountToDeposit * BRUSHPREC * depositionRate);
+
+            if (totalDeposit > 0) {
                 ivec2 cell = ivec2(floor(dropletPos));
                 vec2 offset = fract(dropletPos);
 
-                uint indexNW = uint(cell.y) * gridSize + uint(cell.x);
+                uint centerIndex = uint(dropletPos.y) * gridSize + uint(dropletPos.x);
+                float centerHeight = inputs[centerIndex].position.y;
+
+                // Výpočet průměru sousedních bodů
+                float sum = 0.0;
+                float minHeight = centerHeight;
+                ivec2 minPos = ivec2(int(x), int(y));
+                int samples = 0;
+
+                for (int oy = -1; oy <= 1; oy++) {
+                    for (int ox = -1; ox <= 1; ox++) {
+                        int nx = int(x) + ox;
+                        int ny = int(y) + oy;
+                        if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+                            uint ni = uint(ny) * gridSize + uint(nx);
+                            float h = inputs[ni].position.y;
+                            sum += h;
+                            samples++;
+
+                            if (h < minHeight) {
+                                minHeight = h;
+                                minPos = ivec2(nx, ny);
+                            }
+                        }
+                    }
+                }
+
+                float avg = sum / float(samples);
+                float threshold = 0.01; // Pokud je bod o víc jak X vyšší než okolí, považuj za spike
+
+                ivec2 finalCell = cell;
+
+                // Pokud je bod moc vysoký, přesuneme uložení sedimentu na sousední nejnižší bod
+                if (centerHeight - avg > threshold) {
+                    finalCell = minPos;
+                }
+
+                // Vypočítej indexy znovu podle finálního místa pro ukládání
+                vec2 finalOffset = fract(vec2(finalCell));
+                uint indexNW = uint(finalCell.y) * gridSize + uint(finalCell.x);
                 uint indexNE = indexNW + 1;
                 uint indexSW = indexNW + gridSize;
                 uint indexSE = indexSW + 1;
 
-                float wNW = (1.0 - offset.x) * (1.0 - offset.y);
-                float wNE = offset.x * (1.0 - offset.y);
-                float wSW = (1.0 - offset.x) * offset.y;
-                float wSE = offset.x * offset.y;
-                uint idx = uint(dropletPos.y) * gridSize + uint(dropletPos.x);
-                atomicAdd(outputs[indexNW], int(amountToDeposit * wNW * BRUSHPREC));
-                atomicAdd(outputs[indexSW], int(amountToDeposit * wSW * BRUSHPREC));
-                atomicAdd(outputs[indexNE], int(amountToDeposit * wNE * BRUSHPREC));
-                atomicAdd(outputs[indexSE], int(amountToDeposit * wSE * BRUSHPREC));
-                sediment -= amountToDeposit;
+                float wNW = (1.0 - finalOffset.x) * (1.0 - finalOffset.y);
+                float wNE = finalOffset.x * (1.0 - finalOffset.y);
+                float wSW = (1.0 - finalOffset.x) * finalOffset.y;
+                float wSE = finalOffset.x * finalOffset.y;
+
+                // Výpočet částí
+                int dNW = int(float(totalDeposit) * wNW);
+                int dNE = int(float(totalDeposit) * wNE);
+                int dSW = int(float(totalDeposit) * wSW);
+                int dSE = totalDeposit - dNW - dNE - dSW;
+
+                atomicAdd(outputs[indexNW], dNW);
+                atomicAdd(outputs[indexNE], dNE);
+                atomicAdd(outputs[indexSW], dSW);
+                atomicAdd(outputs[indexSE], dSE);
+
+                sediment -= float(totalDeposit) / BRUSHPREC;
             }
 
         } else {
@@ -163,33 +210,15 @@ void main() {
             if (amountToErode > 0.0) {
                 uint idx = uint(dropletPos.y) * gridSize + uint(dropletPos.x);
 
-                // Celkový součet vah v brushi je 81 (ověř si to případně)
-                const float brushSum = 49.6;
+                float currentHeight = inputs[idx].position.y;
+                float maxErode = max(currentHeight - 0.01, 0.0); // Bezpečnostní mez – nenecháme jít do nuly
 
-                for (int offy = -BRUSH_R; offy <= BRUSH_R; offy++) {
-                    for (int offx = -BRUSH_R; offx <= BRUSH_R; offx++) {
-                        int bx = offx + BRUSH_R;
-                        int by = offy + BRUSH_R;
-                        float weight = brush[by * (BRUSH_R * 2 + 1) + bx];
+                float finalErode = min(amountToErode, maxErode);
+                int erosionAmount = -int(finalErode * BRUSHPREC * erosionRate);
+                atomicAdd(outputs[idx], erosionAmount);
 
-                        int gx = int(x) + offx;
-                        int gy = int(y) + offy;
-
-                        if (gx >= 0 && gx < gridSize && gy >= 0 && gy < gridSize) {
-                            uint i = uint(gy) * gridSize + uint(gx);
-
-                            // Normalizovaná eroze podle váhy v brushe
-                            int erosionAmount = -int(amountToErode * (weight / brushSum) * BRUSHPREC * erosionRate);
-                            atomicAdd(outputs[i], erosionAmount);
-                        }
-                    }
-                }
-
-                // sediment zůstává stejný, protože jsme ho rozdistribuovali
-                sediment += amountToErode;
+                sediment += finalErode;
             }
-
-
         }
 
         // Update pozice a smeru
