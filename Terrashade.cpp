@@ -224,7 +224,7 @@ void initImGui(GLFWwindow* window) {
     ImGui_ImplOpenGL3_Init("#version 460");
 }
 
-void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mouseX, double mouseY) {
+void renderGUI(Terrain& terrain, Shader& water, Shader& shader, GLFWwindow* window, double mouseX, double mouseY) {
     ImGui::SetNextWindowSizeConstraints(ImVec2(300, 100), ImVec2(600, 800));
     ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize); // Hlavní okno GUI
     // **SEKCE UPRAV**
@@ -271,7 +271,7 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
     static double erosionPeriod = 0.1;
     static double lastErosionTime = 0;
     static Params dunesParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  2.0, 0.5, 1 };
-    static Params plainsParams = { 0.4, 0.5,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
+    static Params plainsParams = { 0.63, 0.45,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
     static Params mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0, 1 };
     static Params seaParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
     static Erosion erosion;
@@ -461,9 +461,16 @@ void renderGUI(Terrain& terrain, Shader& shader, GLFWwindow* window, double mous
         shader.SetFloat("shininess", shininess);
         shader.SetVec3("lightDir", glm::normalize(lightDir));
         shader.SetVec3("lightColor", lightColor);
+        water.Use();
+        water.SetVec3("lightDir", glm::normalize(lightDir));
+        water.SetVec3("viewPos", camera.Position);
+        water.SetVec3("fragWorldPos", glm::vec3(0.0f, -1.0f, 0.0f));
+        water.SetFloat("lightIntensity", lightIntensity);
+        water.SetFloat("ambientStrength", ambientStrength);
+        water.SetFloat("diffuseStrength", diffuseStrength);
+        water.SetFloat("specularStrength", specularStrength);
         StartGUI = false;
     }
-
     ImGui::End();
 }
 
@@ -545,6 +552,8 @@ int main() {
 
     // Načtení shaderů
     Shader terrainShader("Shaders/terrain.vert", "Shaders/terrain.frag");
+    Shader waterShader("Shaders/water.vert", "Shaders/water.frag");
+
 
     Texture grassTexture("textures/grass/text.jpg");
     Texture grassNormalTexture("textures/grass/normal.jpg");
@@ -583,6 +592,12 @@ int main() {
     Skybox skybox;
     Shader skyboxShader("Shaders/skybox.vert", "Shaders/skybox.frag");
 
+    //BACK CULLING
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
+
+
     while (!glfwWindowShouldClose(window)) {
         // Vyčištění obrazovky
         float currentFrame = static_cast<float>(glfwGetTime());
@@ -599,7 +614,7 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        renderGUI(terrain, terrainShader, window, mouseX, mouseY);
+        renderGUI(terrain, waterShader, terrainShader, window, mouseX, mouseY);
 
 
         // Výpočet kamerových matic
@@ -619,6 +634,7 @@ int main() {
         }
         currentWaterFrame += 0.2f; // Rychlost animace
         if (currentWaterFrame >= waterFrames) currentWaterFrame = 0.0f;
+        // Vykreslení vody
 
         // Použití shaderu
         glm::mat4 model = glm::mat4(1.0f);
@@ -694,7 +710,7 @@ int main() {
 
         // Vykreslení terénu
         terrain.Draw(terrainShader,camera.Position, FOV, camera.Front);
-
+        terrain.DrawWater(waterShader, currentWaterFrame, view, projection);
 
         // Vykreslení skyboxu
         glDepthFunc(GL_LEQUAL);
@@ -706,7 +722,7 @@ int main() {
         skyboxShader.SetMat4("view", glm::value_ptr(view));
         skyboxShader.SetMat4("projection", glm::value_ptr(projection));
         glm::mat4 skyboxModel = glm::mat4(1.0f);
-        skyboxModel = glm::translate(skyboxModel, glm::vec3(0.0f, -100.0f, 0.0f)); // Posun dolů o 50 jednotek
+        skyboxModel = glm::translate(skyboxModel, glm::vec3(0.0f, -50.0f, 0.0f)); // Posun dolů o 50 jednotek
         skyboxShader.SetMat4("model", glm::value_ptr(skyboxModel));
 
         skybox.Draw(skyboxShader);

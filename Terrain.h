@@ -4,6 +4,7 @@
 #include <vector>
 #include <glad/glad.h>
 #include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include "Shader.h"
 #include "stb_image_write.h"
 #include <math.h>
@@ -67,6 +68,7 @@ public:
     void ComputeErosion(Erosion erosion);
     void UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, float persistence, float lacunarity, unsigned int seed);
     void ReadHeightsFromSSBO();
+    void DrawWater(Shader& waterShader, float currentFrame, const glm::mat4& view, const glm::mat4& projection);
     float GetHeightAt(float worldX, float worldZ);
     void ModifyTerrain(glm::vec3 hitPoint, int mode);
     void UpdateBiomeParams(const Params& dunes, const Params& plains, const Params& mountains, const Params& sea);

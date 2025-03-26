@@ -178,6 +178,8 @@
     <None Include="Shaders\Terrain.comp" />
     <None Include="Shaders\Terrain.frag" />
     <None Include="Shaders\Terrain.vert" />
+    <None Include="Shaders\Water.frag" />
+    <None Include="Shaders\Water.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

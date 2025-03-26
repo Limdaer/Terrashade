@@ -136,5 +136,11 @@
     <None Include="Shaders\ErosionApply.comp">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="Shaders\Water.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Shaders\Water.vert">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

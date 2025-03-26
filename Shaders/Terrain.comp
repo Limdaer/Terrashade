@@ -378,7 +378,7 @@ float getHeight(float x, float y, out uint[3] biomeID, out vec3 weights) {
     weights = vec3(0.0, 0.0, 0.0);
     voronoiMap(pos, edgeSharpness, scale, cells[0], cells[1], cells[2], weights);
 
-    float seaLevel = 0.0;
+    float seaLevel = -1.0;
     float heights[3];
 
     Params activeBiomes[5];
@@ -416,6 +416,7 @@ float getHeight(float x, float y, out uint[3] biomeID, out vec3 weights) {
 
         if (biomeID[i] == 0) {
             heights[i] = seaLevel;
+            biomeID[i] = 3;
         }
     }
 

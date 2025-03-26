@@ -30,6 +30,7 @@ flat out uint biomeID2;
 flat out uint biomeID3;
 out vec3 Weights;
 out float visible;
+out int lod;
 
 void main() {
     Output results = outputs[gl_VertexID];
@@ -37,12 +38,26 @@ void main() {
     uint y = gl_VertexID / gridSize;
     uint chunkX = x / CHUNK;
     uint chunkY = y / CHUNK;
-    visible = float(chunkPoses[chunkX * 2 + chunkY * chunkCount * 2]);
+
+    int chunkIndex = int(chunkX * 2 + chunkY * chunkCount * 2);
+    int isVisible = chunkPoses[chunkIndex];
+    int lod = chunkPoses[chunkIndex + 1];
+    visible = float(isVisible);
+
+    if (lod == 1) {
+        results.position.y *= 0.9;
+    }
+    else if (lod == 2) {
+        results.position.y *= 0.7;
+    }
+    else if (lod == 3) {
+        results.position.y *= 0.4;
+    }
     // Pozice ve světovém prostoru
     vec4 worldPosition = model * vec4(results.position.x, results.position.y,results.position.z, 1.0);
     // Výpočet finální normály
     vec3 normal = normalize(mat3(transpose(inverse(model))) * results.normal.xyz);
-    
+
     TexCoords = results.position.xz * 0.1; // Opakování textury každých 10 jednotek
 
     //Předání biomeID
@@ -55,4 +70,7 @@ void main() {
     Normal = normal;
     Weights = vec3(results.biomeWeight[0],results.biomeWeight[1],results.biomeWeight[2]);
     gl_Position = projection * view * worldPosition;
+    if(visible < 0.5){
+    gl_Position = vec4(0.0);
+    }
 }

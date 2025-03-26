@@ -104,24 +104,36 @@ void Terrain::Draw(Shader terrain,glm::vec3 cameraPos, float FOV, glm::vec3 view
 
     for (int y = 0; y < chunksNum; y++) {
         for (int x = 0; x < chunksNum; x++) {
-            float worldX = (x + 0.5f) * CHUNK - float(gridSize) / 2.0f * dx;
-            float worldZ = (y + 0.5f) * CHUNK - float(gridSize) / 2.0f * dx;
+            float worldX = (x + 0.5f) * CHUNK * dx - (gridSize * 0.5f) * dx;
+            float worldZ = (y + 0.5f) * CHUNK * dx - (gridSize * 0.5f) * dx;
+
             center = glm::vec2(worldX, worldZ);
             glm::vec2 relCenter = center - glm::vec2(cameraPos.x, cameraPos.z);
 
             float d1 = glm::dot(relCenter, v1n);
             float d2 = glm::dot(relCenter, v2n);
             float d3 = glm::dot(relCenter, v3n);
+
             if (d1 <= chunkR && d2 <= chunkR && d3 <= chunkR) {
-                chunksToRender.push_back(1);
-                chunksToRender.push_back(1);
+                // Vzdálenost pro LOD
+                float dist = glm::length(center - glm::vec2(cameraPos.x, cameraPos.z));
+                int lod = 0;
+                if (dist > 1200.0f) lod = 3;
+                else if (dist > 800.0f) lod = 2;
+                else if (dist > 400.0f) lod = 1;
+
+                // Přidejme do SSBO dvě hodnoty: aktivace a LOD
+                chunksToRender.push_back(1);      // Aktivní chunk
+                chunksToRender.push_back(lod);    // LOD úroveň
             }
             else {
-                chunksToRender.push_back(0);
-                chunksToRender.push_back(0);
+                chunksToRender.push_back(0);      // Neaktivní
+                chunksToRender.push_back(0);      // Nezáleží
             }
         }
     }
+
+
     glNamedBufferSubData(chunkPosSSBO, 0, chunksToRender.size() * sizeof(int), chunksToRender.data());
     glUniform1i(glGetUniformLocation(terrain.ID, "chunkCount"), chunksNum);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, chunkPosSSBO);
@@ -284,6 +296,58 @@ void Terrain::ReadHeightsFromSSBO() {
         biomeWeights[i * 3 + 2] = tempData[i].biomeWeight[2];
     }
 }
+
+void Terrain::DrawWater(Shader& waterShader, float currentFrame, const glm::mat4& view, const glm::mat4& projection) {
+    static unsigned int waterVAO = 0, waterVBO = 0, waterEBO = 0;
+
+    if (waterVAO == 0) {
+        float size = worldSize;
+        float vertices[] = {
+            -size / 2, 0.0f, -size / 2,
+             size / 2, 0.0f, -size / 2,
+             size / 2, 0.0f,  size / 2,
+            -size / 2, 0.0f,  size / 2
+        };
+        unsigned int indices[] = {
+            0, 2, 1,
+            0, 3, 2
+        };
+
+
+        glGenVertexArrays(1, &waterVAO);
+        glGenBuffers(1, &waterVBO);
+        glGenBuffers(1, &waterEBO);
+
+        glBindVertexArray(waterVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, waterVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, waterEBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+    }
+
+    // Aktivace shaderu a nastavení matic
+    waterShader.Use();
+    glm::mat4 model = glm::mat4(1.0f);
+    waterShader.SetMat4("model", glm::value_ptr(model));
+    waterShader.SetMat4("view", glm::value_ptr(view));
+    waterShader.SetMat4("projection", glm::value_ptr(projection));
+    waterShader.SetFloat("waterFrame", currentFrame);
+
+    // Voda má průhlednost
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glBindVertexArray(waterVAO);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+
+    glDisable(GL_BLEND);
+}
+
 
 
 float Terrain::GetHeightAt(float worldX, float worldZ) {

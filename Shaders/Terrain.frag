@@ -10,6 +10,7 @@ flat in uint biomeID2;
 flat in uint biomeID3;
 in vec3 Weights;
 in float visible;
+flat in int lod;
 
 // Uniformy pro osvětlení
 uniform vec3 lightDir; // Směr světla
@@ -43,11 +44,22 @@ uniform float waterFrame;
 vec3 CalculateLighting(
     sampler2D textureMap, sampler2D normalMap, sampler2D roughnessMap, sampler2D aoMap
 ) {
+    vec2 texcoords = TexCoords;
+    if (lod == 1) {
+        texcoords *= 0.5;
+    }
+    else if (lod == 2) {
+        texcoords *= 0.25;
+    }
+    else if (lod == 3) {
+        texcoords *= 0.1;
+    }
+
     // Načtení dat z textur
-    vec3 textureColor = texture(textureMap, TexCoords).rgb;
-    vec3 normalTex = texture(normalMap, TexCoords).rgb * 2.0 - 1.0;
-    float roughness = texture(roughnessMap, TexCoords).r;
-    float ao = texture(aoMap, TexCoords).r;
+    vec3 textureColor = texture(textureMap, texcoords).rgb;
+    vec3 normalTex = texture(normalMap, texcoords).rgb * 2.0 - 1.0;
+    float roughness = texture(roughnessMap, texcoords).r;
+    float ao = texture(aoMap, texcoords).r;
 
     // Použití normály z SSBO místo normal mapy
     vec3 norm = normalize(Normal);
@@ -115,8 +127,6 @@ vec3 GetBiomeTexture(uint biomeID) {
 
 
 void main() {
-//    FragColor = vec4(visible,visible,0,1);
-//    return;
     float height = FragPos.y;
 
     vec3 col1 = GetBiomeTexture(biomeID1);
