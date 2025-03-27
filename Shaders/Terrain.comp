@@ -416,7 +416,6 @@ float getHeight(float x, float y, out uint[3] biomeID, out vec3 weights) {
 
         if (biomeID[i] == 0) {
             heights[i] = seaLevel;
-            biomeID[i] = 3;
         }
     }
 

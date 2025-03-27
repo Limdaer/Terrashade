@@ -22,6 +22,7 @@ public:
     //nastaví i jiné proměnné
     void SetVec3(const char* name, float x, float y, float z);
     void SetVec3(const char* name, const glm::vec3& value);
+    void SetVec4(const char* name, const glm::vec4& value);
     void SetFloat(const char* name, float value);
     void SetInt(const char* name, int value);
     void SetUInt(const char* name, unsigned int value);

@@ -28,9 +28,9 @@ uniform float shininess = 32.0;
 uniform vec3 viewPos;
 
 // Výška pro mixování textur
-uniform float grassHeight = 10.0;
-uniform float rockHeight = 15.0;
-uniform float blendRange = 5.0;
+uniform float grassHeight;
+uniform float rockHeight;
+uniform float blendRange;
 
 // Textura terénu
 uniform sampler2D grassTexture, grassNormal, grassRough, grassAo;

@@ -72,51 +72,128 @@ void Terrain::GenerateTerrain() {
     glBindVertexArray(0);
 }
 
+glm::vec4 createPlane(glm::vec3 a, glm::vec3 b, glm::vec3 c) {
+    glm::vec3 normal = glm::normalize(glm::cross(a - b, c - b));
+    float dist = -glm::dot(normal, a);
+    return glm::vec4(normal, dist);
+}
 
-void Terrain::Draw(Shader terrain,glm::vec3 cameraPos, float FOV, glm::vec3 viewDir) {
+glm::vec3 worldDiv(glm::vec4 a) {
+    return glm::vec3(a / a.w);
+}
+
+bool isInFrustum(glm::vec3 minCorner, glm::vec3 maxCorner,glm::vec4 planes[6]) {
+    glm::vec3 extent = (maxCorner - minCorner) * 0.5f;
+    glm::vec3 center = (minCorner + maxCorner) * 0.5f;
+    for (int i = 0; i < 6; i++) {
+        glm::vec3 normal = glm::vec3(planes[i]);
+        float dist = planes[i].w;
+        float radius = extent.x * std::abs(normal.x) + 
+            extent.y * std::abs(normal.y) +
+            extent.z * std::abs(normal.z);
+        float d = glm::dot(normal, center) + dist;
+        if (d + radius < 0)
+            return false;
+    }
+    return true;
+}
+
+//void draw_debug_triangles(glm::vec3 const* vertices, size_t vertices_count, glm::vec4 color, glm::mat4 view, glm::mat4 projection) {
+//    static GLuint vao = 0;
+//    static GLuint vbo = 0;
+//    static Shader debug_shader("Shaders/debug.vert", "Shaders/debug.frag");
+//
+//    size_t max_count = 1024;
+//    if (vao == 0) {
+//        glGenVertexArrays(1, &vao);
+//        glGenBuffers(1, &vbo);
+//
+//        glBindVertexArray(vao);
+//        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+//        glBufferData(GL_ARRAY_BUFFER, max_count * sizeof(glm::vec3), NULL, GL_DYNAMIC_DRAW);
+//
+//        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+//        glEnableVertexAttribArray(0);
+//    }
+//
+//    size_t copy_count = vertices_count < max_count ? vertices_count : max_count;
+//    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+//    glBufferSubData(GL_ARRAY_BUFFER, 0, copy_count * sizeof(glm::vec3), vertices);
+//
+//    glm::mat4 model = glm::mat4(1.0f);
+//    debug_shader.Use();
+//    debug_shader.SetVec4("color", color);
+//    debug_shader.SetMat4("model", glm::value_ptr(model));
+//    debug_shader.SetMat4("view", glm::value_ptr(view));
+//    debug_shader.SetMat4("projection", glm::value_ptr(projection));
+//
+//    glBindVertexArray(vao);
+//    glDrawArrays(GL_TRIANGLES, 0, copy_count);
+//    glBindVertexArray(0);
+//}
+//
+//void drawDebugTriangle(glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec4 color, glm::mat4 view, glm::mat4 projection) {
+//    glm::vec3 vert[3] = { a,b,c };
+//    draw_debug_triangles(vert, 3, color, view, projection);
+//}
+
+void Terrain::Draw(Shader terrain,glm::mat4 view,glm::mat4 projection) {
+    //glm::mat4 cullView = glm::identity<glm::mat4>();
+    //glm::mat4 cullProjection = glm::perspective(glm::radians(90.0f), 800.0f / 600.0f, 1.0f, 10.0f);
+    glm::mat4 invViewProjection = glm::inverse(projection * view);
+    glm::vec4 ndc_near00 = glm::vec4(-1, -1, -1, 1);
+    glm::vec4 ndc_near01 = glm::vec4(-1, 1, -1, 1);
+    glm::vec4 ndc_near10 = glm::vec4(1, -1, -1, 1);
+    glm::vec4 ndc_near11 = glm::vec4(1, 1, -1, 1);
+    glm::vec4 ndc_far00 = glm::vec4(-1, -1, 1, 1);
+    glm::vec4 ndc_far01 = glm::vec4(-1, 1, 1, 1);
+    glm::vec4 ndc_far10 = glm::vec4(1, -1, 1, 1);
+    glm::vec4 ndc_far11 = glm::vec4(1, 1, 1, 1);
+
+    glm::vec3 world_near00 = worldDiv(invViewProjection * ndc_near00);
+    glm::vec3 world_near01 = worldDiv(invViewProjection * ndc_near01);
+    glm::vec3 world_near10 = worldDiv(invViewProjection * ndc_near10);
+    glm::vec3 world_near11 = worldDiv(invViewProjection * ndc_near11);
+    glm::vec3 world_far00 = worldDiv(invViewProjection * ndc_far00);
+    glm::vec3 world_far01 = worldDiv(invViewProjection * ndc_far01);
+    glm::vec3 world_far10 = worldDiv(invViewProjection * ndc_far10);
+    glm::vec3 world_far11 = worldDiv(invViewProjection * ndc_far11);
+
+    glm::vec4 planes[6];
+
+    planes[0] = createPlane(world_near11, world_near10, world_far10);
+    planes[1] = createPlane(world_near01, world_near11, world_far11);
+    planes[2] = createPlane(world_near00, world_near01, world_far01);
+    planes[3] = createPlane(world_near10, world_near00, world_far00);
+    planes[4] = createPlane(world_near00, world_near10, world_near11);
+    planes[5] = createPlane(world_far11, world_far10, world_far00);
+    //drawDebugTriangle(world_far10, world_near10, world_near11, glm::vec4(1, 0, 0, 0.5f), view, projection);
+    //drawDebugTriangle(world_far11, world_near11, world_near01, glm::vec4(0, 1, 0, 0.5f), view, projection);
+    //drawDebugTriangle(world_far01, world_near01, world_near00, glm::vec4(0, 0, 1, 0.5f), view, projection);
+    //drawDebugTriangle(world_far00, world_near00, world_near10, glm::vec4(1, 1, 0, 0.5f), view, projection);
+    //drawDebugTriangle(world_near11, world_near10, world_near00, glm::vec4(0, 1, 1, 0.5f), view, projection);
+    //drawDebugTriangle(world_far01, world_far00, world_far10, glm::vec4(1, 0, 1, 0.5f), view, projection);
     glBindVertexArray(VAO);
-
     int chunksNum = (gridSize + CHUNK - 1) / CHUNK;
     float dx = gridSize / worldSize;
-    glm::vec2 center;
-    glm::vec2 v = glm::vec2(viewDir.x, viewDir.z);
-    glm::vec2 perp = glm::vec2(-v.y, v.x);
-    float sinAlpha = sinf(FOV + 1e-6f);
-
-    // výškový faktor – čím výš jsi, tím víc rozšiřujeme výseč
-    float heightFactor = cameraPos.y * 0.15;
-
-    // fov faktor – čím větší fov, tím větší faktor (v radiánech)
-    float fovFactor = glm::clamp(FOV / glm::radians(60.0f), 1.0f, 2.0f);
-
-    // konečný rozšířený sinAlpha
-    sinAlpha *= heightFactor * fovFactor;
-
-    glm::vec2 v1 = glm::normalize(v) + sinAlpha * glm::normalize(perp);
-    glm::vec2 v2 = glm::normalize(v) - sinAlpha * glm::normalize(perp);
-    glm::vec2 v3 = glm::normalize(perp);
-    glm::vec2 v1n = -glm::normalize(glm::normalize(perp) + sinAlpha * glm::normalize(v));
-    glm::vec2 v2n = glm::normalize(glm::normalize(perp) - sinAlpha * glm::normalize(v));
-    glm::vec2 v3n = -glm::normalize(v);
-    float chunkR = sqrtf(2)* CHUNK / 2 * dx + cameraPos.y;
 
     chunksToRender.clear();
 
     for (int y = 0; y < chunksNum; y++) {
         for (int x = 0; x < chunksNum; x++) {
-            float worldX = (x + 0.5f) * CHUNK * dx - (gridSize * 0.5f) * dx;
-            float worldZ = (y + 0.5f) * CHUNK * dx - (gridSize * 0.5f) * dx;
+            float minX = x * CHUNK * dx - (gridSize * 0.5f) * dx;
+            float minY = -100;
+            float minZ = y * CHUNK * dx - (gridSize * 0.5f) * dx;
+            float maxX = (x + 1) * CHUNK * dx - (gridSize * 0.5f) * dx;
+            float maxY = 100;
+            float maxZ = (y + 1) * CHUNK * dx - (gridSize * 0.5f) * dx;
 
-            center = glm::vec2(worldX, worldZ);
-            glm::vec2 relCenter = center - glm::vec2(cameraPos.x, cameraPos.z);
+            bool isIn = isInFrustum(glm::vec3(minX, minY, minZ), glm::vec3(maxX, maxY, maxZ), planes);
 
-            float d1 = glm::dot(relCenter, v1n);
-            float d2 = glm::dot(relCenter, v2n);
-            float d3 = glm::dot(relCenter, v3n);
-
-            if (d1 <= chunkR && d2 <= chunkR && d3 <= chunkR) {
+            if (isIn) {
                 // Vzdálenost pro LOD
-                float dist = glm::length(center - glm::vec2(cameraPos.x, cameraPos.z));
+                //float dist = glm::length(center - glm::vec2(cameraPos.x, cameraPos.z));
+                float dist = 0;
                 int lod = 0;
                 if (dist > 1200.0f) lod = 3;
                 else if (dist > 800.0f) lod = 2;
@@ -133,7 +210,7 @@ void Terrain::Draw(Shader terrain,glm::vec3 cameraPos, float FOV, glm::vec3 view
         }
     }
 
-
+    terrain.Use();
     glNamedBufferSubData(chunkPosSSBO, 0, chunksToRender.size() * sizeof(int), chunksToRender.data());
     glUniform1i(glGetUniformLocation(terrain.ID, "chunkCount"), chunksNum);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, chunkPosSSBO);

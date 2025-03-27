@@ -96,9 +96,8 @@ void gl_debug_output_func(GLenum source,
 }
 
 
-static void gl_post_call_gl_callback(void* ret, const char* name, GLADapiproc apiproc, int len_args, ...) {
-    (void)ret;
-    (void)apiproc;
+static void gl_post_call_gl_callback(const char* name, void* funcptr, int len_args, ...)
+ {
     (void)len_args;
 
     GLenum error_code = glad_glGetError();
@@ -121,8 +120,8 @@ void gl_debug_output_enable()
     else
         printf("GL Debug info wasnt enabled! Provide appropriate window hint!\n");
 
-    gladSetGLPostCallback(gl_post_call_gl_callback);
-    gladInstallGLDebug();
+    glDebugMessageCallback(gl_debug_output_func, 0);
+    glad_set_post_callback(gl_post_call_gl_callback);
 }
 
 // Callback pro změnu velikosti okna, upravuje viewport
@@ -275,7 +274,11 @@ void renderGUI(Terrain& terrain, Shader& water, Shader& shader, GLFWwindow* wind
     static Params mountainsParams = { 0.0, 0.0,  2.0, 0.8,  0.8, 2.0,  2.0, 2.0,  0.0, 0.0, 1 };
     static Params seaParams = { 0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0,  0.0, 0.0, 1 };
     static Erosion erosion;
+    static float grassHeight = 10.0;
+    static float rockHeight = 15.0;
+    static float blendRange = 5.0;
 
+    ImGui::Text("Erosion settings");
     ImGui::Separator();
 
     ImGui::SliderInt("numDroplets", &erosion.numDroplets, 1000, 10000000);
@@ -441,18 +444,24 @@ void renderGUI(Terrain& terrain, Shader& water, Shader& shader, GLFWwindow* wind
     static float shininess = 1.5f;
     static glm::vec3 lightDir = glm::vec3(-1.0f, -1.0f, -1.0f);
     static glm::vec3 lightColor = glm::vec3(0.8f, 1.0f, 0.9f);
+    static glm::vec3 waterColor = glm::vec3(0.0f, 0.3f, 0.8f);
 
-    bool updated_light = false;
-    updated_light |= ImGui::SliderFloat("Light Intensity", &lightIntensity, 0.0f, 2.0f);
-    updated_light |= ImGui::SliderFloat("Ambient Strength", &ambientStrength, 0.0f, 1.0f);
-    updated_light |= ImGui::SliderFloat("Diffuse Strength", &diffuseStrength, 0.0f, 2.0f);
-    updated_light |= ImGui::SliderFloat("Specular Strength", &specularStrength, 0.0f, 1.0f);
-    updated_light |= ImGui::SliderFloat("Shininess", &shininess, 1.0f, 128.0f);
-    updated_light |= ImGui::SliderFloat("Light Dir X", &lightDir.x, -1.0f, 1.0f);
-    updated_light |= ImGui::SliderFloat("Light Dir Y", &lightDir.y, -1.0f, 1.0f);
-    updated_light |= ImGui::SliderFloat("Light Dir Z", &lightDir.z, -1.0f, 1.0f);
-    updated_light |= ImGui::ColorEdit3("Light Color", glm::value_ptr(lightColor));
-    if (updated_light || StartGUI) {
+    bool updatedFrag = false;
+    updatedFrag |= ImGui::SliderFloat("Light Intensity", &lightIntensity, 0.0f, 2.0f);
+    updatedFrag |= ImGui::SliderFloat("Ambient Strength", &ambientStrength, 0.0f, 1.0f);
+    updatedFrag |= ImGui::SliderFloat("Diffuse Strength", &diffuseStrength, 0.0f, 2.0f);
+    updatedFrag |= ImGui::SliderFloat("Specular Strength", &specularStrength, 0.0f, 1.0f);
+    updatedFrag |= ImGui::SliderFloat("Shininess", &shininess, 1.0f, 128.0f);
+    updatedFrag |= ImGui::SliderFloat("Light Dir X", &lightDir.x, -1.0f, 1.0f);
+    updatedFrag |= ImGui::SliderFloat("Light Dir Y", &lightDir.y, -1.0f, 1.0f);
+    updatedFrag |= ImGui::SliderFloat("Light Dir Z", &lightDir.z, -1.0f, 1.0f);
+    updatedFrag |= ImGui::ColorEdit3("Light Color", glm::value_ptr(lightColor));
+    updatedFrag |= ImGui::ColorEdit3("Water Color", glm::value_ptr(waterColor));
+    updatedFrag |= ImGui::SliderFloat("Grass height", &grassHeight, 0.0f, 40.0f);
+    updatedFrag |= ImGui::SliderFloat("Rock height", &rockHeight, 0.0f, 40.0f);
+    updatedFrag |= ImGui::SliderFloat("Blend range", &blendRange, 0.0f, 10.0f);
+
+    if (updatedFrag || StartGUI) {
         shader.Use();
         shader.SetFloat("lightIntensity", lightIntensity);
         shader.SetFloat("ambientStrength", ambientStrength);
@@ -461,6 +470,9 @@ void renderGUI(Terrain& terrain, Shader& water, Shader& shader, GLFWwindow* wind
         shader.SetFloat("shininess", shininess);
         shader.SetVec3("lightDir", glm::normalize(lightDir));
         shader.SetVec3("lightColor", lightColor);
+        shader.SetFloat("grassHeight", grassHeight);
+        shader.SetFloat("rockHeight", rockHeight);
+        shader.SetFloat("blendRange", blendRange);
         water.Use();
         water.SetVec3("lightDir", glm::normalize(lightDir));
         water.SetVec3("viewPos", camera.Position);
@@ -469,6 +481,7 @@ void renderGUI(Terrain& terrain, Shader& water, Shader& shader, GLFWwindow* wind
         water.SetFloat("ambientStrength", ambientStrength);
         water.SetFloat("diffuseStrength", diffuseStrength);
         water.SetFloat("specularStrength", specularStrength);
+        water.SetVec3("waterColor", waterColor);
         StartGUI = false;
     }
     ImGui::End();
@@ -544,7 +557,7 @@ int main() {
 
 
     // Načtení OpenGL funkcí pomocí GLAD
-    gladSetGLOnDemandLoader((GLADloadfunc)glfwGetProcAddress);
+    gladLoadGL();
     gl_debug_output_enable();
 
     // Povolení hloubkového testu
@@ -618,7 +631,7 @@ int main() {
 
 
         // Výpočet kamerových matic
-        float FOV = glm::radians(75.0f);
+        float FOV = glm::radians(90.0f);
         glm::mat4 view = camera.GetViewMatrix();
         glm::mat4 projection = glm::perspective(FOV, 800.0f / 600.0f, 0.1f, 10000.0f);
         glm::vec3 rayDir = GetRayFromMouse((float)mouseX, (float)mouseY, 1600, 1200, projection, view);
@@ -709,7 +722,7 @@ int main() {
         sandAoTexture.Bind(15);
 
         // Vykreslení terénu
-        terrain.Draw(terrainShader,camera.Position, FOV, camera.Front);
+        terrain.Draw(terrainShader,view,projection);
         terrain.DrawWater(waterShader, currentWaterFrame, view, projection);
 
         // Vykreslení skyboxu

@@ -120,6 +120,11 @@ void Shader::SetVec3(const char* name, const glm::vec3& value) {
     glUniform3fv(glGetUniformLocation(ID, name), 1, glm::value_ptr(value));
 }
 
+// Nastaví uniformní proměnnou vec4 (přes glm::vec4)
+void Shader::SetVec4(const char* name, const glm::vec4& value) {
+    glUniform4fv(glGetUniformLocation(ID, name), 1, glm::value_ptr(value));
+}
+
 // Nastaví uniformní proměnnou float
 void Shader::SetFloat(const char* name, float value) {
     glUniform1f(glGetUniformLocation(ID, name), value);

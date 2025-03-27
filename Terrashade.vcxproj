@@ -138,6 +138,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="Externals\glad\src\glad.c" />
     <ClCompile Include="Externals\imgui\imgui.cpp" />
     <ClCompile Include="Externals\imgui\imgui_demo.cpp" />
     <ClCompile Include="Externals\imgui\imgui_draw.cpp" />
@@ -170,6 +171,8 @@
     <ClInclude Include="Terrain.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Shaders\debug.frag" />
+    <None Include="Shaders\debug.vert" />
     <None Include="Shaders\Erosion.comp" />
     <None Include="Shaders\ErosionApply.comp" />
     <None Include="Shaders\Normals.comp" />

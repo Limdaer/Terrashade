@@ -62,7 +62,7 @@ public:
     Terrain(int gridSize, float worldSize);
     ~Terrain();
 
-    void Draw(Shader terrain, glm::vec3 cameraPos, float FOV, glm::vec3 viewDir);
+    void Draw(Shader terrain, glm::mat4 view, glm::mat4 projection);
     void ComputeTerrain();
     void ComputeNormals();
     void ComputeErosion(Erosion erosion);
