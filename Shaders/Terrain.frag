@@ -45,21 +45,15 @@ vec3 CalculateLighting(
     sampler2D textureMap, sampler2D normalMap, sampler2D roughnessMap, sampler2D aoMap
 ) {
     vec2 texcoords = TexCoords;
-    if (lod == 1) {
-        texcoords *= 0.5;
-    }
-    else if (lod == 2) {
-        texcoords *= 0.25;
-    }
-    else if (lod == 3) {
-        texcoords *= 0.1;
-    }
 
     // Načtení dat z textur
     vec3 textureColor = texture(textureMap, texcoords).rgb;
+    //vec3 textureColor = vec3(1,1,1);
     vec3 normalTex = texture(normalMap, texcoords).rgb * 2.0 - 1.0;
     float roughness = texture(roughnessMap, texcoords).r;
+    //float roughness = 1;
     float ao = texture(aoMap, texcoords).r;
+    //float ao = 0;
 
     // Použití normály z SSBO místo normal mapy
     vec3 norm = normalize(Normal);
@@ -97,36 +91,22 @@ vec3 GetTextureByHeight() {
     return grassColor * grassBlend + rockColor * rockBlend + snowColor * snowBlend;
 }
 
-
-vec3 GetWaterColor() {
-    vec2 texCoords = TexCoords / 4.0; // Zvětšení dlaždicování vody
-    vec3 waterNormal = texture(waterTextureArray, vec3(texCoords, waterFrame)).rgb * 2.0 - 1.0;
-
-    // Barva vody (modifikovaná podle normálové mapy)
-    vec3 baseWaterColor = vec3(0.0, 0.2, 0.3);
-    vec3 finalWaterColor = baseWaterColor + 0.1 * waterNormal;
-
-    return finalWaterColor;
-}
-
 vec3 GetBiomeTexture(uint biomeID) {
-    if (biomeID == 0) {
-        return GetWaterColor();
+    if (biomeID == 0 || biomeID == 3) { //Morske dno nebo poust
+        return CalculateLighting(sandTexture, sandNormal, sandRough, sandAo);
     }
     else if (biomeID == 1) {
         return CalculateLighting(grassTexture, grassNormal, grassRough, grassAo);
     }
     else if (biomeID == 2) {
-        return GetTextureByHeight();
+        return GetTextureByHeight(); //Mix textur podle vysky
     }
-    else if (biomeID == 3) {
-        return CalculateLighting(sandTexture, sandNormal, sandRough, sandAo);
-    }
-    return vec3(1.0, 0.0, 1.0);
+    return vec3(1.0, 0.0, 1.0); //Error
 }
 
-
 void main() {
+//    FragColor = vec4(Normal,1);
+//    return;
     float height = FragPos.y;
 
     vec3 col1 = GetBiomeTexture(biomeID1);

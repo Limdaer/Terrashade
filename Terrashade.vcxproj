@@ -71,8 +71,12 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Users\wizar\OneDrive\Plocha\Skola\BP\Terrashade\Externals\glfw-3.4\include;C:\Users\wizar\OneDrive\Plocha\Skola\BP\Terrashade\Externals\glm;C:\Users\wizar\OneDrive\Plocha\Skola\BP\Terrashade\Externals\glad\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\wizar\OneDrive\Plocha\Skola\BP\Terrashade\Externals\glfw-3.4\lib-vc2022;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(ProjectDir)Externals\imgui;$(ProjectDir)Externals\glm;$(ProjectDir)Externals\glfw-3.4\include;$(ProjectDir)Externals\glad\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)Externals\glfw-3.4\lib-vc2022;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>$(ProjectDir)Externals\imgui;$(ProjectDir)Externals\glm;$(ProjectDir)Externals\glfw-3.4\include;$(ProjectDir)Externals\glad\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)Externals\glfw-3.4\lib-vc2022;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -108,15 +112,17 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\wizar\OneDrive\Plocha\Skola\BP\Terrashade\Externals\imgui;C:\Users\Limdaer\Desktop\škola\Programko\BP\Terrashade\Externals\glm;C:\Users\Limdaer\Desktop\škola\Programko\BP\Terrashade\Externals\glfw-3.4\include;C:\Users\Limdaer\Desktop\škola\Programko\BP\Terrashade\Externals\glad\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)Externals\imgui;$(ProjectDir)Externals\glm;$(ProjectDir)Externals\glfw-3.4\include;$(ProjectDir)Externals\glad\include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalOptions>/D_CRT_SECURE_NO_WARNINGS %(AdditionalOptions)</AdditionalOptions>
+      <Optimization>Disabled</Optimization>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>glfw3.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Users\Limdaer\Desktop\škola\Programko\BP\Terrashade\Externals\glfw-3.4\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.20348.0\um\x64;$(ProjectDir)Externals\glfw-3.4\lib-vc2022</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -128,12 +134,18 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalOptions>/D_CRT_SECURE_NO_WARNINGS %(AdditionalOptions)</AdditionalOptions>
+      <Optimization>Disabled</Optimization>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <AdditionalIncludeDirectories>$(ProjectDir)Externals\imgui;$(ProjectDir)Externals\glm;$(ProjectDir)Externals\glfw-3.4\include;$(ProjectDir)Externals\glad\include</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.20348.0\um\x64;$(ProjectDir)Externals\glfw-3.4\lib-vc2022</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

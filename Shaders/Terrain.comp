@@ -349,22 +349,18 @@ float combinedNoise(vec2 pos, Params params) {
     float combined = 0.0;
 
     combined += fbm(pos * params.fbmFreq) * params.fbmAmp;
-
     // Voronoi základní noise
-    combined += voronoiNoise(pos * params.voroFreq, edgeSharpness * 0.4, scale * 1.5) * params.voroAmp * 0.8;
-    
+    combined += voronoiNoise(pos * params.voroFreq, edgeSharpness * 0.4, scale * 1.5) 
+    * params.voroAmp * 0.8;
     // Warping
     vec2 warp = vec2(fbm(pos), fbm(pos + vec2(4.3, 2.1))) * 2.0;
-
     // Distortion
     float distortion = fbm(pos * 1.0) * 0.5;
-
     // Morphed Voronoi noise
-    combined += voronoiNoise(pos * params.morphedvoroFreq + warp + distortion, edgeSharpness * 0.6, scale * 1.2) * params.morphedvoroAmp * 0.2;
-
+    combined += voronoiNoise(pos * params.morphedvoroFreq + warp + 
+    distortion, edgeSharpness * 0.6, scale * 1.2) * params.morphedvoroAmp * 0.2;
     // Ridge noise
     combined += ridgeNoise(pos * params.ridgeFreq, scale * 2) * params.ridgeAmp;
-
     // Sand dunes
     combined += sandDunes(pos * params.sandFreq, edgeSharpness, scale) * params.sandAmp;
 
@@ -456,7 +452,6 @@ void main() {
 
     results.position = vec4(worldX, worldY, worldZ, 1.0);
     results.normal = vec4(computeNormal(worldX, worldZ),0.0);
-
     results.biomeIDs[0] = biomeID[0];
     results.biomeIDs[1] = biomeID[1];
     results.biomeIDs[2] = biomeID[2];

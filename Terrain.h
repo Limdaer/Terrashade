@@ -82,12 +82,13 @@ public:
     float worldSize;
     int dropletIdx = 0;
     std::vector<int> chunksToRender;
+    std::vector<int> drawOffsets;
 
 private:
     void GenerateTerrain();
 
     GLuint VAO, VBO, EBO;
-    GLuint resultsSSBO, uniformBuffer, intsSSBO, chunkPosSSBO;
+    GLuint resultsSSBO, uniformBuffer, intsSSBO, chunkPosSSBO, drawOffsetSSBO;
     Shader computeShader;
     Shader erosionShader;
     Shader normalShader;

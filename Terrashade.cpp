@@ -643,6 +643,7 @@ int main() {
             glm::vec3 hitPoint;
             if (RayIntersectsTerrain(camera.Position, rayDir, terrain, hitPoint)) {
                 terrain.ModifyTerrain(hitPoint, editMode);
+                terrain.ComputeNormals();
             }
         }
         currentWaterFrame += 0.2f; // Rychlost animace

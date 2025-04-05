@@ -18,11 +18,10 @@ namespace glm
 		typedef mat<4, 4, T, Q> transpose_type;
 		typedef T value_type;
 
-	private:
-		col_type value[4];
 
 	public:
 		// -- Accesses --
+		col_type value[4];
 
 		typedef length_t length_type;
 		GLM_FUNC_DECL static GLM_CONSTEXPR length_type length(){return 4;}

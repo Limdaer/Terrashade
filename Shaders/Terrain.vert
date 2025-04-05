@@ -14,6 +14,11 @@ layout (std430, binding = 0) buffer Buffer {
 layout (std430, binding = 1) buffer ChunkPosBuffer {
     int chunkPoses[];
 };
+
+layout (std430, binding = 2) buffer drawOffsetsBuffer {
+    int drawOffsets[];
+};
+
 #define CHUNK 32
 uniform mat4 model;
 uniform mat4 view;
@@ -33,9 +38,10 @@ out float visible;
 out int lod;
 
 void main() {
-    Output results = outputs[gl_VertexID];
-    uint x = gl_VertexID % gridSize;
-    uint y = gl_VertexID / gridSize;
+    uint index = gl_VertexID + drawOffsets[gl_InstanceID];
+    Output results = outputs[index];
+    uint x = index % gridSize;
+    uint y = index / gridSize;
     uint chunkX = x / CHUNK;
     uint chunkY = y / CHUNK;
 
@@ -44,15 +50,6 @@ void main() {
     int lod = chunkPoses[chunkIndex + 1];
     visible = float(isVisible);
 
-    if (lod == 1) {
-        results.position.y *= 0.9;
-    }
-    else if (lod == 2) {
-        results.position.y *= 0.7;
-    }
-    else if (lod == 3) {
-        results.position.y *= 0.4;
-    }
     // Pozice ve světovém prostoru
     vec4 worldPosition = model * vec4(results.position.x, results.position.y,results.position.z, 1.0);
     // Výpočet finální normály
@@ -70,7 +67,4 @@ void main() {
     Normal = normal;
     Weights = vec3(results.biomeWeight[0],results.biomeWeight[1],results.biomeWeight[2]);
     gl_Position = projection * view * worldPosition;
-    if(visible < 0.5){
-    gl_Position = vec4(0.0);
-    }
 }
