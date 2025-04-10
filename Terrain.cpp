@@ -1,12 +1,14 @@
 ﻿#include "Terrain.h"
 #include <iostream>
 #define PRECISION (1024 * 16)
-#define CHUNK 32
+#define CHUNK 33
+#define CHUNK_FACES 32
 
 
-Terrain::Terrain(int gridSize, float worldSize) : gridSize(gridSize), worldSize(worldSize), 
-computeShader("Shaders/Terrain.comp"), erosionShader("Shaders/Erosion.comp"), normalShader("Shaders/Normals.comp"), 
+Terrain::Terrain(int gridSize, float worldSize) : worldSize(worldSize),
+computeShader("Shaders/Terrain.comp"), erosionShader("Shaders/Erosion.comp"), normalShader("Shaders/Normals.comp"),
 erosionApplyShader("Shaders/ErosionApply.comp") {
+    this->gridSize = (gridSize + CHUNK - 1) / CHUNK * CHUNK;
     GenerateTerrain();
     ComputeTerrain();
 }
@@ -15,11 +17,34 @@ erosionApplyShader("Shaders/ErosionApply.comp") {
 Terrain::~Terrain() {
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &EBO);
+    glDeleteBuffers(1, &EBOLOD1);
+    glDeleteBuffers(1, &EBOLOD2);
+    glDeleteBuffers(1, &EBOLOD4);
     glDeleteBuffers(1, &resultsSSBO);
     glDeleteBuffers(1, &intsSSBO);
     glDeleteBuffers(1, &uniformBuffer);
     glDeleteBuffers(1, &chunkPosSSBO);
+}
+
+std::vector<unsigned int> GenerateTerrainIdxBuffer(int rows, int cols, int gridSize, int lodLevel) {
+    std::vector<unsigned int> indices;
+    for (int row = 0; row < rows - lodLevel; row += lodLevel) {
+        for (int col = 0; col < cols - lodLevel; col += lodLevel) {
+            int topLeft = row * gridSize + col;
+            int topRight = topLeft + lodLevel;
+            int bottomLeft = (row + lodLevel) * gridSize + col;
+            int bottomRight = bottomLeft + lodLevel;
+
+            indices.push_back(topLeft);
+            indices.push_back(bottomLeft);
+            indices.push_back(topRight);
+
+            indices.push_back(topRight);
+            indices.push_back(bottomLeft);
+            indices.push_back(bottomRight);
+        }
+    }
+    return indices;
 }
 
 void Terrain::GenerateTerrain() {
@@ -27,7 +52,7 @@ void Terrain::GenerateTerrain() {
     // SSBO pro pozice (x, y, z)
     glGenBuffers(1, &resultsSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, resultsSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, gridSize * gridSize 
+    glBufferData(GL_SHADER_STORAGE_BUFFER, gridSize * gridSize
         * sizeof(Output), NULL, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
@@ -41,9 +66,19 @@ void Terrain::GenerateTerrain() {
     glBufferData(GL_SHADER_STORAGE_BUFFER, (chunksNum * chunksNum * sizeof(int)), NULL, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-    glGenBuffers(1, &drawOffsetSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, drawOffsetSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, (chunksNum * chunksNum * sizeof(int)), NULL, GL_DYNAMIC_DRAW);
+    glGenBuffers(1, &drawOffsetSSBO1);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, drawOffsetSSBO1);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, (chunksNum * chunksNum * sizeof(ChunkDraw)), NULL, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    glGenBuffers(1, &drawOffsetSSBO2);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, drawOffsetSSBO2);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, (chunksNum * chunksNum * sizeof(ChunkDraw)), NULL, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    glGenBuffers(1, &drawOffsetSSBO4);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, drawOffsetSSBO4);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, (chunksNum * chunksNum * sizeof(ChunkDraw)), NULL, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
     // Uniformbuffer
@@ -55,27 +90,23 @@ void Terrain::GenerateTerrain() {
     glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
     // EBO pro indexy trojúhelníků
-    std::vector<unsigned int> indices;
-    for (int row = 0; row < CHUNK - 1; row++) {
-        for (int col = 0; col < CHUNK - 1; col++) {
-            int topLeft = row * gridSize + col;
-            int topRight = topLeft + 1;
-            int bottomLeft = (row + 1) * gridSize + col;
-            int bottomRight = bottomLeft + 1;
+    std::vector<unsigned int> indices1 = GenerateTerrainIdxBuffer(CHUNK, CHUNK, gridSize, 1);
+    std::vector<unsigned int> indices2 = GenerateTerrainIdxBuffer(CHUNK, CHUNK, gridSize, 2);
+    std::vector<unsigned int> indices4 = GenerateTerrainIdxBuffer(CHUNK, CHUNK, gridSize, 4);
 
-            indices.push_back(topLeft);
-            indices.push_back(bottomLeft);
-            indices.push_back(topRight);
 
-            indices.push_back(topRight);
-            indices.push_back(bottomLeft);
-            indices.push_back(bottomRight);
-        }
-    }
 
-    glGenBuffers(1, &EBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+    glGenBuffers(1, &EBOLOD1);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOLOD1);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices1.size() * sizeof(unsigned int), indices1.data(), GL_STATIC_DRAW);
+
+    glGenBuffers(1, &EBOLOD2);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOLOD2);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices2.size() * sizeof(unsigned int), indices2.data(), GL_STATIC_DRAW);
+
+    glGenBuffers(1, &EBOLOD4);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOLOD4);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices4.size() * sizeof(unsigned int), indices4.data(), GL_STATIC_DRAW);
 
     glBindVertexArray(0);
 }
@@ -90,14 +121,14 @@ glm::vec3 worldDiv(glm::vec4 a) {
     return glm::vec3(a / a.w);
 }
 
-bool isInFrustum(glm::vec3 minCorner, glm::vec3 maxCorner,glm::vec4 planes[6], float chunkWorldSize) {
+bool isInFrustum(glm::vec3 minCorner, glm::vec3 maxCorner, glm::vec4 planes[6], float chunkWorldSize) {
     glm::vec3 extent = (maxCorner - minCorner) * 0.5f;
     glm::vec3 center = (minCorner + maxCorner) * 0.5f;
     float treshold = -chunkWorldSize;
     for (int i = 0; i < 6; i++) {
         glm::vec3 normal = glm::vec3(planes[i]);
         float dist = planes[i].w;
-        float radius = extent.x * std::abs(normal.x) + 
+        float radius = extent.x * std::abs(normal.x) +
             extent.y * std::abs(normal.y) +
             extent.z * std::abs(normal.z);
         float d = glm::dot(normal, center) + dist;
@@ -107,46 +138,7 @@ bool isInFrustum(glm::vec3 minCorner, glm::vec3 maxCorner,glm::vec4 planes[6], f
     return true;
 }
 
-//void draw_debug_triangles(glm::vec3 const* vertices, size_t vertices_count, glm::vec4 color, glm::mat4 view, glm::mat4 projection) {
-//    static GLuint vao = 0;
-//    static GLuint vbo = 0;
-//    static Shader debug_shader("Shaders/debug.vert", "Shaders/debug.frag");
-//
-//    size_t max_count = 1024;
-//    if (vao == 0) {
-//        glGenVertexArrays(1, &vao);
-//        glGenBuffers(1, &vbo);
-//
-//        glBindVertexArray(vao);
-//        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-//        glBufferData(GL_ARRAY_BUFFER, max_count * sizeof(glm::vec3), NULL, GL_DYNAMIC_DRAW);
-//
-//        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-//        glEnableVertexAttribArray(0);
-//    }
-//
-//    size_t copy_count = vertices_count < max_count ? vertices_count : max_count;
-//    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-//    glBufferSubData(GL_ARRAY_BUFFER, 0, copy_count * sizeof(glm::vec3), vertices);
-//
-//    glm::mat4 model = glm::mat4(1.0f);
-//    debug_shader.Use();
-//    debug_shader.SetVec4("color", color);
-//    debug_shader.SetMat4("model", glm::value_ptr(model));
-//    debug_shader.SetMat4("view", glm::value_ptr(view));
-//    debug_shader.SetMat4("projection", glm::value_ptr(projection));
-//
-//    glBindVertexArray(vao);
-//    glDrawArrays(GL_TRIANGLES, 0, copy_count);
-//    glBindVertexArray(0);
-//}
-//
-//void drawDebugTriangle(glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec4 color, glm::mat4 view, glm::mat4 projection) {
-//    glm::vec3 vert[3] = { a,b,c };
-//    draw_debug_triangles(vert, 3, color, view, projection);
-//}
-
-void Terrain::Draw(Shader terrain,glm::mat4 view,glm::mat4 projection) {
+void Terrain::Draw(Shader terrain, glm::mat4 view, glm::mat4 projection, glm::vec3 cameraPos) {
     //glm::mat4 cullView = glm::identity<glm::mat4>();
     //glm::mat4 cullProjection = glm::perspective(glm::radians(90.0f), 800.0f / 600.0f, 1.0f, 10.0f);
 
@@ -177,19 +169,15 @@ void Terrain::Draw(Shader terrain,glm::mat4 view,glm::mat4 projection) {
     planes[3] = createPlane(world_near10, world_near00, world_far00);
     planes[4] = createPlane(world_near00, world_near10, world_near11);
     planes[5] = createPlane(world_far11, world_far10, world_far00);
-    //drawDebugTriangle(world_far10, world_near10, world_near11, glm::vec4(1, 0, 0, 0.5f), view, projection);
-    //drawDebugTriangle(world_far11, world_near11, world_near01, glm::vec4(0, 1, 0, 0.5f), view, projection);
-    //drawDebugTriangle(world_far01, world_near01, world_near00, glm::vec4(0, 0, 1, 0.5f), view, projection);
-    //drawDebugTriangle(world_far00, world_near00, world_near10, glm::vec4(1, 1, 0, 0.5f), view, projection);
-    //drawDebugTriangle(world_near11, world_near10, world_near00, glm::vec4(0, 1, 1, 0.5f), view, projection);
-    //drawDebugTriangle(world_far01, world_far00, world_far10, glm::vec4(1, 0, 1, 0.5f), view, projection);
     glBindVertexArray(VAO);
     int chunksNum = (gridSize + CHUNK - 1) / CHUNK;
     float dx = gridSize / worldSize;
-    
+
 
     chunksToRender.clear();
-    drawOffsets.clear();
+    drawOffsets1.clear();
+    drawOffsets2.clear();
+    drawOffsets4.clear();
 
     for (int y = 0; y < chunksNum; y++) {
         for (int x = 0; x < chunksNum; x++) {
@@ -199,19 +187,33 @@ void Terrain::Draw(Shader terrain,glm::mat4 view,glm::mat4 projection) {
             float maxX = (x + 1) * CHUNK * dx - (gridSize * 0.5f) * dx;
             float maxY = 100;
             float maxZ = (y + 1) * CHUNK * dx - (gridSize * 0.5f) * dx;
- 
-            bool isIn = isInFrustum(glm::vec3(minX, minY, minZ), glm::vec3(maxX, maxY, maxZ), planes, CHUNK*dx);
-
+            glm::vec2 center = glm::vec2((minX + maxX) / 2, (minZ + maxZ) / 2);
+            bool isIn = isInFrustum(glm::vec3(minX, minY, minZ), glm::vec3(maxX, maxY, maxZ), planes, CHUNK * dx);
+            //bool isIn = true;
+            int chunkOffset = (y * gridSize + x) * CHUNK_FACES;
+            ChunkDraw chunkDraw = { 0 };
+            chunkDraw.vertexOffset = chunkOffset;
+            chunkDraw.chunkX = x;
+            chunkDraw.chunkY = y;
             if (isIn) {
                 // Vzdálenost pro LOD
-                //float dist = glm::length(center - glm::vec2(cameraPos.x, cameraPos.z));
-                float dist = 0;
-                int lod = 1;
-                if (dist > 800.0f) lod = 4;
-                else if (dist > 400.0f) lod = 2;
+                float dist = glm::length(center - glm::vec2(cameraPos.x, cameraPos.z));
+                //float dist = 20;
+                int lod = 0;
+                if (dist > 400.0f) {
+                    lod = 4;
+                    drawOffsets4.push_back(chunkDraw);
+                }
+                else if (dist > 200.0f) {
+                    lod = 2;
+                    drawOffsets2.push_back(chunkDraw);
+                }
+                else {
+                    lod = 1;
+                    drawOffsets1.push_back(chunkDraw);
+                }
 
                 chunksToRender.push_back(lod);    // LOD úroveň
-                drawOffsets.push_back(x * (CHUNK - 1) + y * (CHUNK - 1) * gridSize);
             }
             else {
                 chunksToRender.push_back(0);      // Nezáleží
@@ -224,13 +226,23 @@ void Terrain::Draw(Shader terrain,glm::mat4 view,glm::mat4 projection) {
     glUniform1i(glGetUniformLocation(terrain.ID, "chunkCount"), chunksNum);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, chunkPosSSBO);
 
-    glNamedBufferSubData(drawOffsetSSBO, 0, drawOffsets.size() * sizeof(int), drawOffsets.data());
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, drawOffsetSSBO);
-
-    // Připojení SSBO jako zdroje dat pro VAO
+    glNamedBufferSubData(drawOffsetSSBO1, 0, drawOffsets1.size() * sizeof(ChunkDraw), drawOffsets1.data());
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, drawOffsetSSBO1);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, resultsSSBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glDrawElementsInstanced(GL_TRIANGLES, (CHUNK - 1) * (CHUNK - 1) * 6, GL_UNSIGNED_INT, 0,drawOffsets.size());
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOLOD1);
+    glDrawElementsInstanced(GL_TRIANGLES, CHUNK_FACES * CHUNK_FACES * 6, GL_UNSIGNED_INT, 0, drawOffsets1.size());
+
+    glNamedBufferSubData(drawOffsetSSBO2, 0, drawOffsets2.size() * sizeof(ChunkDraw), drawOffsets2.data());
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, drawOffsetSSBO2);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, resultsSSBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOLOD2);
+    glDrawElementsInstanced(GL_TRIANGLES, CHUNK_FACES * CHUNK_FACES / 4 * 6, GL_UNSIGNED_INT, 0, drawOffsets2.size());
+
+    glNamedBufferSubData(drawOffsetSSBO4, 0, drawOffsets4.size() * sizeof(ChunkDraw), drawOffsets4.data());
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, drawOffsetSSBO4);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, resultsSSBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBOLOD4);
+    glDrawElementsInstanced(GL_TRIANGLES, CHUNK_FACES * CHUNK_FACES / 16 * 6, GL_UNSIGNED_INT, 0, drawOffsets4.size());
 }
 
 
@@ -284,8 +296,8 @@ void Terrain::ComputeNormals() {
 //Eroze
 void Terrain::ComputeErosion(Erosion erosion) {
     erosionShader.Use(); // Aktivace erosion compute shaderu
-  
-    
+
+
     // Nastavení uniformů
     glUniform1i(glGetUniformLocation(erosionShader.ID, "gridSize"), gridSize);
     glUniform1i(glGetUniformLocation(erosionShader.ID, "dropletIdx"), dropletIdx);
@@ -319,7 +331,7 @@ void Terrain::ComputeErosion(Erosion erosion) {
     glUseProgram(0);
 }
 
-void Terrain::UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves, 
+void Terrain::UpdateTerrain(float scale, float edgeSharpness, float heightScale, int octaves,
     float persistence, float lacunarity, unsigned int seed) {
     computeShader.Use();  // Aktivace compute shaderu
 

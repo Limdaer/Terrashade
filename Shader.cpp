@@ -109,6 +109,10 @@ void Shader::CheckCompileErrors(unsigned int shader, std::string type) {
 void Shader::SetMat4(const char* name, const float* value) {
     glUniformMatrix4fv(glGetUniformLocation(ID, name), 1, GL_FALSE, value);
 }
+// Nastaví matici 3x3 v shaderu
+void Shader::SetMat3(const char* name, const float* value) {
+    glUniformMatrix3fv(glGetUniformLocation(ID, name), 1, GL_FALSE, value);
+}
 
 // Nastaví uniformní proměnnou vec3 (ruční zadání tří složek)
 void Shader::SetVec3(const char* name, float x, float y, float z) {

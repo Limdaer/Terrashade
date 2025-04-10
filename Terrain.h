@@ -57,12 +57,18 @@ struct Erosion {
     float initialSpeed = 0.3;
 };
 
+struct ChunkDraw {
+    int vertexOffset;
+    int chunkX;
+    int chunkY;
+};
+
 class Terrain {
 public:
     Terrain(int gridSize, float worldSize);
     ~Terrain();
 
-    void Draw(Shader terrain, glm::mat4 view, glm::mat4 projection);
+    void Draw(Shader terrain, glm::mat4 view, glm::mat4 projection, glm::vec3 cameraPos);
     void ComputeTerrain();
     void ComputeNormals();
     void ComputeErosion(Erosion erosion);
@@ -82,13 +88,16 @@ public:
     float worldSize;
     int dropletIdx = 0;
     std::vector<int> chunksToRender;
-    std::vector<int> drawOffsets;
+    std::vector<ChunkDraw> drawOffsets1;
+    std::vector<ChunkDraw> drawOffsets2;
+    std::vector<ChunkDraw> drawOffsets4;
 
 private:
     void GenerateTerrain();
 
-    GLuint VAO, VBO, EBO;
-    GLuint resultsSSBO, uniformBuffer, intsSSBO, chunkPosSSBO, drawOffsetSSBO;
+    GLuint VAO, VBO, EBOLOD1, EBOLOD2, EBOLOD4;
+    GLuint resultsSSBO, uniformBuffer, intsSSBO, chunkPosSSBO, 
+        drawOffsetSSBO1, drawOffsetSSBO2, drawOffsetSSBO4;
     Shader computeShader;
     Shader erosionShader;
     Shader normalShader;

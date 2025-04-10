@@ -19,6 +19,8 @@ public:
 
     // Nastaví matici 4x4 v shaderu (např. model, view, projection matice)
     void SetMat4(const char* name, const float* value);
+    void SetMat3(const char* name, const float* value);
+
     //nastaví i jiné proměnné
     void SetVec3(const char* name, float x, float y, float z);
     void SetVec3(const char* name, const glm::vec3& value);

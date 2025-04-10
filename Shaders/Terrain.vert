@@ -11,21 +11,30 @@ layout (std430, binding = 0) buffer Buffer {
     Output outputs[];
 };
 
-layout (std430, binding = 1) buffer ChunkPosBuffer {
-    int chunkPoses[];
+layout (std430, binding = 1) buffer lodLevelsBuffer {
+    int lodLevels[];
 };
+
+struct ChunkDraw{
+    int vertexOffset;
+    int chunkX;
+    int chunkY;
+};
+
 
 layout (std430, binding = 2) buffer drawOffsetsBuffer {
-    int drawOffsets[];
+    ChunkDraw chunkDraws[];
 };
 
-#define CHUNK 32
+#define CHUNK 33
+#define ARR3_TO_VEC3(x) vec3(x[0], x[1], x[2])
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 uniform uint gridSize;
 uniform float gridDx;
 uniform int chunkCount;
+uniform mat3 modelMatrix;
 
 out vec3 FragPos;  
 out vec3 Normal;
@@ -38,22 +47,71 @@ out float visible;
 out int lod;
 
 void main() {
-    uint index = gl_VertexID + drawOffsets[gl_InstanceID];
+    ChunkDraw chunkDraw = chunkDraws[gl_InstanceID];
+    uint index = gl_VertexID + chunkDraw.vertexOffset;
     Output results = outputs[index];
-    uint x = index % gridSize;
-    uint y = index / gridSize;
-    uint chunkX = x / CHUNK;
-    uint chunkY = y / CHUNK;
+    uint chunkIdx = chunkDraw.chunkX + chunkDraw.chunkY * chunkCount;
+    uint chunkW = (chunkDraw.chunkX - 1) + chunkDraw.chunkY * chunkCount;
+    uint chunkE = (chunkDraw.chunkX + 1) + chunkDraw.chunkY * chunkCount;
+    uint chunkN = chunkDraw.chunkX + (chunkDraw.chunkY + 1) * chunkCount;
+    uint chunkS = chunkDraw.chunkX + (chunkDraw.chunkY - 1) * chunkCount;
 
-    int chunkIndex = int(chunkX * 2 + chunkY * chunkCount * 2);
-    int isVisible = chunkPoses[chunkIndex];
-    int lod = chunkPoses[chunkIndex + 1];
-    visible = float(isVisible);
+    int lodLevel = lodLevels[chunkIdx];
+    visible = 0;
+    uint localX = gl_VertexID % gridSize;
+    uint localY = gl_VertexID / gridSize;
+    vec4 position = results.position;
+    vec4 normal = results.normal;
+    vec3 weights = ARR3_TO_VEC3(results.biomeWeight);
+    if(localX == 0 && chunkDraw.chunkX != 0){
+        int lodNext = lodLevels[chunkW];
+        if(lodLevel < lodNext && localY % lodNext != 0){
+            visible = 4;
+            uint results1 = index - gridSize * lodLevel;
+            uint results2 = index + gridSize * lodLevel;
+            position = (outputs[results1].position + outputs[results2].position) / 2;
+            normal = (outputs[results1].normal + outputs[results2].normal) / 2;
+            weights = (ARR3_TO_VEC3(outputs[results1].biomeWeight) + ARR3_TO_VEC3(outputs[results2].biomeWeight)) / 2;
+        }
+    }
+    if(localX == CHUNK - 1 && chunkDraw.chunkX != chunkCount - 1){
+        int lodNext = lodLevels[chunkE];
+        if(lodLevel < lodNext && localY % lodNext != 0){
+            visible = 4;
+            uint results1 = index - gridSize * lodLevel;
+            uint results2 = index + gridSize * lodLevel;
+            position = (outputs[results1].position + outputs[results2].position) / 2;
+            normal = (outputs[results1].normal + outputs[results2].normal) / 2;
+            weights = (ARR3_TO_VEC3(outputs[results1].biomeWeight) + ARR3_TO_VEC3(outputs[results2].biomeWeight)) / 2;
+        }
+    }
+    if(localY == 0 && chunkDraw.chunkY != 0){
+        int lodNext = lodLevels[chunkS];
+        if(lodLevel < lodNext && localX % lodNext != 0){
+            visible = 4;
+            uint results1 = index - 1 * lodLevel;
+            uint results2 = index + 1 * lodLevel;
+            position = (outputs[results1].position + outputs[results2].position) / 2;
+            normal = (outputs[results1].normal + outputs[results2].normal) / 2;
+            weights = (ARR3_TO_VEC3(outputs[results1].biomeWeight) + ARR3_TO_VEC3(outputs[results2].biomeWeight)) / 2;
+        }
+    }
+    if(localY == CHUNK - 1 && chunkDraw.chunkY != chunkCount - 1){
+        int lodNext = lodLevels[chunkN];
+        if(lodLevel < lodNext && localX % lodNext != 0){
+            visible = 4;
+            uint results1 = index - 1 * lodLevel;
+            uint results2 = index + 1 * lodLevel;
+            position = (outputs[results1].position + outputs[results2].position) / 2;
+            normal = (outputs[results1].normal + outputs[results2].normal) / 2;
+            weights = (ARR3_TO_VEC3(outputs[results1].biomeWeight) + ARR3_TO_VEC3(outputs[results2].biomeWeight)) / 2;
+        }
+    }
 
     // Pozice ve světovém prostoru
-    vec4 worldPosition = model * vec4(results.position.x, results.position.y,results.position.z, 1.0);
+    vec4 worldPosition = model * vec4(position.xyz, 1.0);
     // Výpočet finální normály
-    vec3 normal = normalize(mat3(transpose(inverse(model))) * results.normal.xyz);
+    vec3 normalProject = normalize(modelMatrix * normal.xyz);
 
     TexCoords = results.position.xz * 0.1; // Opakování textury každých 10 jednotek
 
@@ -64,7 +122,7 @@ void main() {
 
     // Předání do fragment shaderu
     FragPos = worldPosition.xyz;
-    Normal = normal;
-    Weights = vec3(results.biomeWeight[0],results.biomeWeight[1],results.biomeWeight[2]);
+    Normal = normalProject;
+    Weights = weights;
     gl_Position = projection * view * worldPosition;
 }

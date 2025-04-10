@@ -652,11 +652,13 @@ int main() {
 
         // Použití shaderu
         glm::mat4 model = glm::mat4(1.0f);
+        glm::mat3 modelMatrix = glm::mat3(glm::transpose(glm::inverse(model)));
         // Použití shaderu
         terrainShader.Use();
         terrainShader.SetMat4("model", glm::value_ptr(model));
         terrainShader.SetMat4("view", glm::value_ptr(view));
         terrainShader.SetMat4("projection", glm::value_ptr(projection));
+        terrainShader.SetMat3("modelMatrix", glm::value_ptr(modelMatrix));
         terrainShader.SetUInt("gridSize", terrain.gridSize);
         terrainShader.SetFloat("gridDx", terrain.worldSize / terrain.gridSize);
 
@@ -723,7 +725,7 @@ int main() {
         sandAoTexture.Bind(15);
 
         // Vykreslení terénu
-        terrain.Draw(terrainShader,view,projection);
+        terrain.Draw(terrainShader,view,projection, camera.Position);
         terrain.DrawWater(waterShader, currentWaterFrame, view, projection);
 
         // Vykreslení skyboxu

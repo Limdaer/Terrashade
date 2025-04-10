@@ -88,7 +88,7 @@ vec3 GetTextureByHeight() {
     float snowBlend = smoothstep(rockHeight, rockHeight + blendRange, height);
 
     // Lineární interpolace mezi texturami
-    return grassColor * grassBlend + rockColor * rockBlend + snowColor * snowBlend;
+    return (grassColor * grassBlend + rockColor * rockBlend + snowColor * snowBlend) / (grassBlend + rockBlend + snowBlend);
 }
 
 vec3 GetBiomeTexture(uint biomeID) {
@@ -105,7 +105,8 @@ vec3 GetBiomeTexture(uint biomeID) {
 }
 
 void main() {
-//    FragColor = vec4(Normal,1);
+//    float lodTest = float(visible) / 4;
+//    FragColor = vec4(lodTest,0,0,1);
 //    return;
     float height = FragPos.y;
 
